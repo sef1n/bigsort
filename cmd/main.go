@@ -194,9 +194,7 @@ func getFields(tableFile *os.File, cmpFieldNum int) (fields, error) {
 
 	for {
 		line, err := r.ReadBytes('\n')
-
-		// Сохраням позицию до трима
-		offset += int64(len(line))
+		RawLineLen := int64(len(line))
 		line = bytes.TrimRight(line, "\r\n")
 
 		if len(line) > 0 {
@@ -211,6 +209,8 @@ func getFields(tableFile *os.File, cmpFieldNum int) (fields, error) {
 			if err != nil {
 				return nil, err
 			}
+
+			offset += RawLineLen
 			processingFields = append(processingFields, fi)
 		}
 
