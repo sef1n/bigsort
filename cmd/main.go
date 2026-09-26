@@ -70,15 +70,25 @@ func main() {
 		fmt.Println("Table generated")
 
 	case "p":
-		filename, err := input(scn, fmt.Sprintf("table file (default %v): ", csv_name))
+		// INPUT data
+		inFilename, err := input(scn, fmt.Sprintf("input table file (default %v): ", csv_name))
 		if err != nil {
 			log.Fatal(err)
 		}
-		filename = strings.TrimSpace(filename)
-		if filename == "" {
-			filename = csv_name
+		inFilename = strings.TrimSpace(inFilename)
+		if inFilename == "" {
+			inFilename = csv_name
 		}
-		if err := parseAndMerge(filename, ""); err != nil {
+		// OUTPUT data
+		outFilename, err := input(scn, fmt.Sprintf("output table file (default %v): ", inFilename))
+		if err != nil {
+			log.Fatal(err)
+		}
+		outFilename = strings.TrimSpace(outFilename)
+		if outFilename == "" {
+			outFilename = inFilename
+		}
+		if err := parseAndMerge(inFilename, outFilename); err != nil {
 			log.Fatal(err)
 		}
 		fmt.Println("CSV parsed")
