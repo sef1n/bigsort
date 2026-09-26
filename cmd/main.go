@@ -87,7 +87,7 @@ func main() {
 		if outFilename == "" {
 			outFilename = inFilename
 		}
-		if err := parseAndMerge(inFilename, outFilename); err != nil {
+		if err := ProcessExistingFile(inFilename, outFilename); err != nil {
 			log.Fatal(err)
 		}
 		fmt.Println("CSV parsed")
@@ -98,15 +98,30 @@ func main() {
 	}
 }
 
-func parseAndMerge(inName, outName string) (err error) {
-	if outName == "" {
-		outName = inName
-	}
-
-	tmpFiles, err := genMergers(inName)
+// ProcessExistingFile обрабатывает уже существующую csv таблицу inFilePath: parse, sort, split, merge.
+// Сохраняет результат в outFilePath
+func ProcessExistingFile(inFilePath, outFilePath string) error {
+	// Parse
+	sourceTableF, err := os.Open(inFilePath)
 	if err != nil {
 		return err
 	}
+	defer sourceTableF.Close()
+	tableFields, err := ParseCSVTable(sourceTableF, sortingFieldNum)
+	if err != nil {
+		return err
+	}
+
+	// Sort
+	sort.Sort(&tableFields)
+
+	// Split
+	// TODO: внешний ctx
+	tmpFiles, err := genMiddleFiles(inFilePath, tableFields, context.Background())
+	if err != nil {
+		return err
+	}
+	// Defer close&&remove
 	defer func() {
 		for _, f := range tmpFiles {
 			name := f.Name()
@@ -115,41 +130,31 @@ func parseAndMerge(inName, outName string) (err error) {
 		}
 	}()
 
-	outF, err := os.CreateTemp(tmpFilesPath, "sorted-*.csv.tmp")
+	// Merge
+	// TODO: при rename EXDEV — разные ФС, создавать tmp рядом с outFilePath
+	outFile, err := os.CreateTemp(tmpFilesPath, "sorted-*.csv.tmp")
 	if err != nil {
 		return err
 	}
-	outNameTmp := outF.Name()
+	outNameTmp := outFile.Name()
 	defer func() {
-		_ = outF.Close()
+		_ = outFile.Close()
 		if err != nil {
 			_ = os.Remove(outNameTmp)
 		}
 	}()
 
-	if err = Merge(tmpFiles, outF); err != nil {
+	if err = Merge(tmpFiles, outFile); err != nil {
 		return err
 	}
-	if err = outF.Close(); err != nil {
+	// Закрываем перед переименованием (избегаем проблем на Windows)
+	if err = outFile.Close(); err != nil {
 		return err
 	}
-	if err = os.Rename(outNameTmp, outName); err != nil {
+	if err = os.Rename(outNameTmp, outFilePath); err != nil {
 		return err
 	}
 	return nil
-}
-
-func genMergers(tablePath string) ([]*os.File, error) {
-	tableFile, err := os.Open(tablePath)
-	if err != nil {
-		return nil, err
-	}
-	processingFields, err := getFields(tableFile, 0)
-	if err != nil {
-		return nil, err
-	}
-	sort.Sort(&processingFields)
-	return genMiddleFiles(tablePath, processingFields, context.Background())
 }
 
 func genMiddleFiles(source string, processingFields fields, parentCtx context.Context) ([]*os.File, error) {
@@ -187,7 +192,7 @@ func genMiddleFiles(source string, processingFields fields, parentCtx context.Co
 }
 
 // getFields читает строки из файла, сохраняет Nth поля, возвращает структуру сравниваемых полей
-func getFields(tableFile *os.File, cmpFieldNum int) (fields, error) {
+func ParseCSVTable(tableFile *os.File, cmpFieldNum int) (fields, error) {
 	processingFields := make(fields, 0, predictTableLines)
 	var offset int64
 	r := bufio.NewReader(tableFile)
