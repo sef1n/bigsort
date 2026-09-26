@@ -34,7 +34,7 @@ const (
 var genUsedLetters = []string{"a", "b", "c", "d", "e"}
 
 func input(scn *bufio.Scanner, msg string) (string, error) {
-	fmt.Printf(msg)
+	fmt.Print(msg)
 	if !scn.Scan() {
 		if err := scn.Err(); err != nil {
 			return "", err
