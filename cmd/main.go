@@ -10,7 +10,6 @@ import (
 	"log"
 	"math/rand"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -141,7 +140,11 @@ func parseAndMerge(inName, outName string) (err error) {
 }
 
 func genMergers(tablePath string) ([]*os.File, error) {
-	processingFields, err := getFields(tablePath, 0)
+	tableFile, err := os.Open(tablePath)
+	if err != nil {
+		return nil, err
+	}
+	processingFields, err := getFields(tableFile, 0)
 	if err != nil {
 		return nil, err
 	}
@@ -183,49 +186,34 @@ func genMiddleFiles(source string, processingFields fields, parentCtx context.Co
 	return tmpFs, nil
 }
 
-func countLines(fPath string) (count int, err error) {
-	var out []byte
-	if out, err = exec.Command("wc", "-l", fPath).Output(); err != nil {
-		return
-	}
-	count, err = strconv.Atoi(strings.Fields(string(out))[0])
-	if err != nil {
-		return
-	}
-	return
-}
-
-func getFields(tablePath string, cmpFieldNum int) (fields, error) {
-	tableLines, err := countLines(tablePath)
-	if err != nil {
-		return nil, err
-	}
-	tableLines++
-
-	table, err := os.Open(tablePath)
-	if err != nil {
-		return nil, err
-	}
-	defer table.Close()
-
-	processingFields := make(fields, 0, tableLines)
-
+// getFields читает строки из файла, сохраняет Nth поля, возвращает структуру сравниваемых полей
+func getFields(tableFile *os.File, cmpFieldNum int) (fields, error) {
+	processingFields := make(fields, 0, predictTableLines)
 	var offset int64
-	r := bufio.NewReader(table)
+	r := bufio.NewReader(tableFile)
+
 	for {
-		l, err := r.ReadBytes('\n')
-		if len(l) > 0 {
-			nthF, err := nthField(l, cmpFieldNum)
+		line, err := r.ReadBytes('\n')
+
+		// Сохраням позицию до трима
+		offset += int64(len(line))
+		line = bytes.TrimRight(line, "\r\n")
+
+		if len(line) > 0 {
+			nthF, err := nthField(line, cmpFieldNum)
 			if err != nil {
 				return nil, err
 			}
+
+			fmt.Printf("Creating new %s\n", line)
+
 			fi, err := newField(offset, string(nthF), sortingFieldNum)
 			if err != nil {
 				return nil, err
 			}
-			offset += int64(len(l))
 			processingFields = append(processingFields, fi)
 		}
+
 		if err == io.EOF {
 			break
 		}
