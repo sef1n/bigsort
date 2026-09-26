@@ -23,9 +23,9 @@ import (
 
 const (
 	dataDisk           = "/mnt/FilesHDD"
-	csv_name           = "small_csv_file.tmp"
-	csv_full_path      = dataDisk + "/" + csv_name
+	csv_name           = "table.csv"
 	tmpFilesPath       = dataDisk + "/" + "tmp"
+	predictTableLines  = 100
 	csvGenerationLines = 1 << 10
 	sortingFieldNum    = 0
 	tmpFileFieldsCount = 1000
