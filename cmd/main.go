@@ -157,6 +157,8 @@ func ProcessExistingFile(inFilePath, outFilePath string) error {
 	return nil
 }
 
+// genMiddleFiles создает tmp файлы содержащие processingFields. Кол-во строк в новых файлах = tmpFileFieldsCount.
+// Возвращает слайс файлов, закрывает и удаляет их при ошибке.
 func genMiddleFiles(source string, processingFields fields, parentCtx context.Context) ([]*os.File, error) {
 	var mu sync.Mutex
 	tmpFs := make([]*os.File, 0, (len(processingFields)+tmpFileFieldsCount-1)/tmpFileFieldsCount)
@@ -164,13 +166,14 @@ func genMiddleFiles(source string, processingFields fields, parentCtx context.Co
 	g, ctx := errgroup.WithContext(parentCtx)
 	g.SetLimit(runtime.NumCPU() * 2)
 
+	// Разбиваем слайс на блоки, в отдельных горутинах пишем в файлы
 	for start := 0; start < len(processingFields); start += tmpFileFieldsCount {
 		end := min(start+tmpFileFieldsCount, len(processingFields))
 		g.Go(func() error {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			f, err := sortedTMP(ctx, processingFields[start:end], source)
+			f, err := createTMP(ctx, processingFields[start:end], source)
 			if err != nil {
 				return err
 			}
@@ -181,6 +184,7 @@ func genMiddleFiles(source string, processingFields fields, parentCtx context.Co
 		})
 	}
 
+	// При любой ошибке удаляем все файлы
 	if err := g.Wait(); err != nil {
 		for _, f := range tmpFs {
 			_ = f.Close()
@@ -248,7 +252,8 @@ func nthField(line []byte, n int) ([]byte, error) {
 	return line[start : start+end], nil
 }
 
-func sortedTMP(ctx context.Context, fs fields, sourcePath string) (tmpF *os.File, err error) {
+// createTMP создает tmp файл, заполняет его строками fs.
+func createTMP(ctx context.Context, fs fields, sourcePath string) (tmpF *os.File, err error) {
 	source, err := os.Open(sourcePath)
 	if err != nil {
 		return nil, err
@@ -272,6 +277,8 @@ func sortedTMP(ctx context.Context, fs fields, sourcePath string) (tmpF *os.File
 	reader := bufio.NewReader(source)
 
 	for i, v := range fs {
+		// Каждые 100 строк проверяем ctx
+		// TODO: вычисляем частоту проверки на основе tmpFileFieldsCount/len(fs)?
 		if i%100 == 0 {
 			if err = ctx.Err(); err != nil {
 				return
