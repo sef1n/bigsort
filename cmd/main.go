@@ -258,8 +258,8 @@ func nthField(line []byte, n int) ([]byte, error) {
 	return line[start : start+end], nil
 }
 
-// createTMP создает tmp файл, заполняет его строками fs.
-func createTMP(ctx context.Context, fs fields, sourcePath, creationPath string) (tmpF *os.File, err error) {
+// createTMP создает tmp файл, заполняет его строками processingFields.
+func createTMP(ctx context.Context, processingFields fields, sourcePath, creationPath string) (tmpF *os.File, err error) {
 	source, err := os.Open(sourcePath)
 	if err != nil {
 		return nil, err
@@ -282,7 +282,7 @@ func createTMP(ctx context.Context, fs fields, sourcePath, creationPath string) 
 	w := bufio.NewWriter(tmpF)
 	reader := bufio.NewReader(source)
 
-	for i, v := range fs {
+	for i, v := range processingFields {
 		// Каждые 100 строк проверяем ctx
 		// TODO: вычисляем частоту проверки на основе tmpFileFieldsCount/len(fs)?
 		if i%100 == 0 {
