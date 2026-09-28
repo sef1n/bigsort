@@ -10,12 +10,14 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -87,7 +89,11 @@ func main() {
 		if outFilename == "" {
 			outFilename = inFilename
 		}
-		if err := ProcessExistingFile(inFilename, outFilename); err != nil {
+
+		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+		defer cancel()
+
+		if err := ProcessExistingFile(ctx, inFilename, outFilename); err != nil {
 			log.Fatal(err)
 		}
 		fmt.Println("CSV parsed")
@@ -100,7 +106,7 @@ func main() {
 
 // ProcessExistingFile обрабатывает уже существующую csv таблицу inFilePath: parse, sort, split, merge.
 // Сохраняет результат в outFilePath
-func ProcessExistingFile(inFilePath, outFilePath string) error {
+func ProcessExistingFile(ctx context.Context, inFilePath, outFilePath string) error {
 	// Parse
 	sourceTableF, err := os.Open(inFilePath)
 	if err != nil {
@@ -116,8 +122,7 @@ func ProcessExistingFile(inFilePath, outFilePath string) error {
 	sort.Sort(&tableFields)
 
 	// Split
-	// TODO: внешний ctx
-	tmpFiles, err := genMiddleFiles(inFilePath, tableFields, context.Background())
+	tmpFiles, err := genMiddleFiles(ctx, inFilePath, tableFields)
 	if err != nil {
 		return err
 	}
@@ -159,7 +164,7 @@ func ProcessExistingFile(inFilePath, outFilePath string) error {
 
 // genMiddleFiles создает tmp файлы содержащие processingFields. Кол-во строк в новых файлах = tmpFileFieldsCount.
 // Возвращает слайс файлов, закрывает и удаляет их при ошибке.
-func genMiddleFiles(source string, processingFields fields, parentCtx context.Context) ([]*os.File, error) {
+func genMiddleFiles(parentCtx context.Context, source string, processingFields fields) ([]*os.File, error) {
 	var mu sync.Mutex
 	tmpFs := make([]*os.File, 0, (len(processingFields)+tmpFileFieldsCount-1)/tmpFileFieldsCount)
 
