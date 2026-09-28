@@ -99,6 +99,7 @@ func main() {
 		fmt.Println("CSV parsed")
 
 	default:
+		// WARN: возвращет lower текст
 		fmt.Printf("Incorrect input: %q\n", action)
 		os.Exit(1)
 	}
@@ -149,7 +150,7 @@ func ProcessExistingFile(ctx context.Context, inFilePath, outFilePath string) er
 		}
 	}()
 
-	if err = Merge(tmpFiles, outFile); err != nil {
+	if err = MergeWithContext(ctx, tmpFiles, outFile); err != nil {
 		return err
 	}
 	// Закрываем перед переименованием (избегаем проблем на Windows)

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"container/heap"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -69,7 +70,7 @@ func (h *ReadersHeap) Pop() any {
 	return x
 }
 
-func Merge(inS []*os.File, out io.Writer) error {
+func MergeWithContext(ctx context.Context, inS []*os.File, out io.Writer) error {
 	h := make(ReadersHeap, 0, len(inS))
 
 	for _, f := range inS {
@@ -87,9 +88,15 @@ func Merge(inS []*os.File, out io.Writer) error {
 	heap.Init(&h)
 
 	w := bufio.NewWriter(out)
-	defer w.Flush()
+	// defer w.Flush() - нужно возвращать ошибку
 
-	for h.Len() > 0 {
+	for counter := 0; h.Len() > 0; counter++ {
+		if counter%100 == 0 {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
+		}
+
 		popped := heap.Pop(&h).(*FieldReader)
 
 		if _, err := w.WriteString(popped.line); err != nil {
@@ -105,5 +112,5 @@ func Merge(inS []*os.File, out io.Writer) error {
 			return popped.err
 		}
 	}
-	return nil
+	return w.Flush()
 }
