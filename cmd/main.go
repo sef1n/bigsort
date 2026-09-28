@@ -16,7 +16,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"syscall"
 
 	"golang.org/x/sync/errgroup"
@@ -165,14 +164,13 @@ func ProcessExistingFile(ctx context.Context, inFilePath, outFilePath string) er
 // genMiddleFiles создает tmp файлы содержащие processingFields. Кол-во строк в новых файлах = tmpFileFieldsCount.
 // Возвращает слайс файлов, закрывает и удаляет их при ошибке.
 func genMiddleFiles(parentCtx context.Context, processingFields fields, source, creationPath string) ([]*os.File, error) {
-	var mu sync.Mutex
-	tmpFs := make([]*os.File, 0, (len(processingFields)+tmpFileFieldsCount-1)/tmpFileFieldsCount)
+	tmpFs := make([]*os.File, (len(processingFields)+tmpFileFieldsCount-1)/tmpFileFieldsCount)
 
 	g, ctx := errgroup.WithContext(parentCtx)
 	g.SetLimit(runtime.NumCPU() * 2)
 
 	// Разбиваем слайс на блоки, в отдельных горутинах пишем в файлы
-	for start := 0; start < len(processingFields); start += tmpFileFieldsCount {
+	for idx, start := 0, 0; start < len(processingFields); idx, start = idx+1, start+tmpFileFieldsCount {
 		end := min(start+tmpFileFieldsCount, len(processingFields))
 		g.Go(func() error {
 			if err := ctx.Err(); err != nil {
@@ -182,9 +180,7 @@ func genMiddleFiles(parentCtx context.Context, processingFields fields, source, 
 			if err != nil {
 				return fmt.Errorf("creating block [%d:%d]: %w", start, end, err)
 			}
-			mu.Lock()
-			tmpFs = append(tmpFs, f)
-			mu.Unlock()
+			tmpFs[idx] = f
 			return nil
 		})
 	}
