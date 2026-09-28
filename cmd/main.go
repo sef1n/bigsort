@@ -26,7 +26,6 @@ const (
 	csv_name           = "table.csv"
 	predictTableLines  = 100
 	csvGenerationLines = 1 << 10
-	sortingFieldNum    = 0
 	tmpFileFieldsCount = 1000
 )
 
@@ -88,10 +87,20 @@ func main() {
 			outFilename = inFilename
 		}
 
+		cmpFieldStr, err := input(scn, fmt.Sprintf("sorting field num (from 0): "))
+		if err != nil {
+			log.Fatal(err)
+		}
+		cmpFieldStr = strings.TrimSpace(cmpFieldStr)
+		cmpField, err := strconv.Atoi(cmpFieldStr)
+		if err != nil {
+			log.Fatal(err)
+		}
+
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
 
-		if err := ProcessExistingFile(ctx, inFilename, outFilename); err != nil {
+		if err := ProcessExistingFile(ctx, cmpField, inFilename, outFilename); err != nil {
 			log.Fatal(err)
 		}
 		fmt.Println("CSV parsed")
@@ -105,14 +114,14 @@ func main() {
 
 // ProcessExistingFile обрабатывает уже существующую csv таблицу inFilePath: parse, sort, split, merge.
 // Сохраняет результат в outFilePath
-func ProcessExistingFile(ctx context.Context, inFilePath, outFilePath string) error {
+func ProcessExistingFile(ctx context.Context, cmpFieldNum int, inFilePath, outFilePath string) error {
 	// Parse
 	sourceTableF, err := os.Open(inFilePath)
 	if err != nil {
 		return err
 	}
 	defer sourceTableF.Close()
-	tableFields, err := ParseCSVTable(sourceTableF, sortingFieldNum)
+	tableFields, err := ParseCSVTable(sourceTableF, cmpFieldNum)
 	if err != nil {
 		return err
 	}
@@ -219,7 +228,7 @@ func ParseCSVTable(tableFile *os.File, cmpFieldNum int) (fields, error) {
 
 			fmt.Printf("Creating new %s\n", line)
 
-			fi, parseErr := newField(offset, string(nthF), sortingFieldNum)
+			fi, parseErr := newField(offset, string(nthF), cmpFieldNum)
 			if parseErr != nil {
 				return nil, fmt.Errorf("saving line %d: %w", lineNum, parseErr)
 			}
