@@ -179,7 +179,7 @@ func genMiddleFiles(parentCtx context.Context, source string, processingFields f
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			f, err := createTMP(ctx, processingFields[start:end], source)
+			f, err := createTMP(ctx, processingFields[start:end], source, tmpFilesPath)
 			if err != nil {
 				return err
 			}
@@ -259,14 +259,14 @@ func nthField(line []byte, n int) ([]byte, error) {
 }
 
 // createTMP создает tmp файл, заполняет его строками fs.
-func createTMP(ctx context.Context, fs fields, sourcePath string) (tmpF *os.File, err error) {
+func createTMP(ctx context.Context, fs fields, sourcePath, creationPath string) (tmpF *os.File, err error) {
 	source, err := os.Open(sourcePath)
 	if err != nil {
 		return nil, err
 	}
 	defer source.Close()
 
-	tmpF, err = os.CreateTemp(tmpFilesPath, "")
+	tmpF, err = os.CreateTemp(creationPath, "")
 	if err != nil {
 		return
 	}
