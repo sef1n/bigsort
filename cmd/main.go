@@ -180,7 +180,7 @@ func genMiddleFiles(parentCtx context.Context, processingFields fields, source, 
 			}
 			f, err := createTMP(ctx, processingFields[start:end], source, creationPath)
 			if err != nil {
-				return err
+				return fmt.Errorf("creating block [%d:%d]: %w", start, end, err)
 			}
 			mu.Lock()
 			tmpFs = append(tmpFs, f)
