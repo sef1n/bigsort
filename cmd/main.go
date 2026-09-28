@@ -25,7 +25,6 @@ import (
 const (
 	dataDisk           = "/mnt/FilesHDD"
 	csv_name           = "table.csv"
-	tmpFilesPath       = dataDisk + "/" + "tmp"
 	predictTableLines  = 100
 	csvGenerationLines = 1 << 10
 	sortingFieldNum    = 0
@@ -123,7 +122,8 @@ func ProcessExistingFile(ctx context.Context, inFilePath, outFilePath string) er
 	sort.Sort(&tableFields)
 
 	// Split
-	tmpFiles, err := genMiddleFiles(ctx, inFilePath, tableFields)
+	tmpFilesDirPath := filepath.Dir(outFilePath)
+	tmpFiles, err := genMiddleFiles(ctx, tableFields, inFilePath, tmpFilesDirPath)
 	if err != nil {
 		return err
 	}
@@ -137,8 +137,7 @@ func ProcessExistingFile(ctx context.Context, inFilePath, outFilePath string) er
 	}()
 
 	// Merge
-	// TODO: при rename EXDEV — разные ФС, создавать tmp рядом с outFilePath
-	outFile, err := os.CreateTemp(tmpFilesPath, "sorted-*.csv.tmp")
+	outFile, err := os.CreateTemp(tmpFilesDirPath, "sorted-*.csv.tmp")
 	if err != nil {
 		return err
 	}
@@ -165,7 +164,7 @@ func ProcessExistingFile(ctx context.Context, inFilePath, outFilePath string) er
 
 // genMiddleFiles создает tmp файлы содержащие processingFields. Кол-во строк в новых файлах = tmpFileFieldsCount.
 // Возвращает слайс файлов, закрывает и удаляет их при ошибке.
-func genMiddleFiles(parentCtx context.Context, source string, processingFields fields) ([]*os.File, error) {
+func genMiddleFiles(parentCtx context.Context, processingFields fields, source, creationPath string) ([]*os.File, error) {
 	var mu sync.Mutex
 	tmpFs := make([]*os.File, 0, (len(processingFields)+tmpFileFieldsCount-1)/tmpFileFieldsCount)
 
@@ -179,7 +178,7 @@ func genMiddleFiles(parentCtx context.Context, source string, processingFields f
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			f, err := createTMP(ctx, processingFields[start:end], source, tmpFilesPath)
+			f, err := createTMP(ctx, processingFields[start:end], source, creationPath)
 			if err != nil {
 				return err
 			}
