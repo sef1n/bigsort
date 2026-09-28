@@ -214,25 +214,26 @@ func ParseCSVTable(tableFile *os.File, cmpFieldNum int) (fields, error) {
 		if len(line) > 0 {
 			nthF, err := nthField(line, cmpFieldNum)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("parsing error: %w", err)
 			}
 
 			fmt.Printf("Creating new %s\n", line)
 
 			fi, err := newField(offset, string(nthF), sortingFieldNum)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("parsing error: %w", err)
 			}
 
-			offset += RawLineLen
 			processingFields = append(processingFields, fi)
 		}
+
+		offset += RawLineLen
 
 		if err == io.EOF {
 			break
 		}
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("parsing error: %w", err)
 		}
 	}
 	return processingFields, nil
