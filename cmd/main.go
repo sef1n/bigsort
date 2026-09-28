@@ -206,22 +206,26 @@ func ParseCSVTable(tableFile *os.File, cmpFieldNum int) (fields, error) {
 	var offset int64
 	r := bufio.NewReader(tableFile)
 
-	for {
-		line, err := r.ReadBytes('\n')
+	for lineNum := 0; ; lineNum++ {
+		line, readErr := r.ReadBytes('\n')
+		if readErr != nil && readErr != io.EOF {
+			return nil, fmt.Errorf("read line %d: %w", lineNum, readErr)
+		}
+
 		RawLineLen := int64(len(line))
 		line = bytes.TrimRight(line, "\r\n")
 
 		if len(line) > 0 {
-			nthF, err := nthField(line, cmpFieldNum)
-			if err != nil {
-				return nil, fmt.Errorf("parsing error: %w", err)
+			nthF, parseErr := nthField(line, cmpFieldNum)
+			if parseErr != nil {
+				return nil, fmt.Errorf("parsing line %d: %w", lineNum, parseErr)
 			}
 
 			fmt.Printf("Creating new %s\n", line)
 
-			fi, err := newField(offset, string(nthF), sortingFieldNum)
-			if err != nil {
-				return nil, fmt.Errorf("parsing error: %w", err)
+			fi, parseErr := newField(offset, string(nthF), sortingFieldNum)
+			if parseErr != nil {
+				return nil, fmt.Errorf("saving line %d: %w", lineNum, parseErr)
 			}
 
 			processingFields = append(processingFields, fi)
@@ -229,11 +233,8 @@ func ParseCSVTable(tableFile *os.File, cmpFieldNum int) (fields, error) {
 
 		offset += RawLineLen
 
-		if err == io.EOF {
+		if readErr == io.EOF {
 			break
-		}
-		if err != nil {
-			return nil, fmt.Errorf("parsing error: %w", err)
 		}
 	}
 	return processingFields, nil
