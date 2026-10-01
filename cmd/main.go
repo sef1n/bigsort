@@ -292,12 +292,9 @@ func createTMP(ctx context.Context, processingFields fields, sourcePath, creatio
 	w := bufio.NewWriter(tmpF)
 	reader := bufio.NewReader(source)
 
-	for i, v := range processingFields {
-		// Каждые 100 строк проверяем ctx
-		if i%100 == 0 {
-			if err = ctx.Err(); err != nil {
-				return
-			}
+	for _, v := range processingFields {
+		if err = ctx.Err(); err != nil {
+			return
 		}
 		if _, err = source.Seek(v.offset, io.SeekStart); err != nil {
 			return

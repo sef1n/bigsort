@@ -11,6 +11,8 @@ import (
 	"strings"
 )
 
+const ctxCheckMask = 1<<7 - 1 // проверять контекст каждые 128 итераций
+
 type FieldReader struct {
 	cmpField int // Поле, по которому выполняется сортировка
 	line     string
@@ -99,11 +101,9 @@ func MergeWithContext(ctx context.Context, inS []*os.File, out io.Writer) error 
 	w := bufio.NewWriterSize(out, 64*1024)
 	// defer w.Flush() - нужно возвращать ошибку
 
-	for counter := 0; h.Len() > 0; counter++ {
-		if counter%100 == 0 {
-			if err := ctx.Err(); err != nil {
-				return err
-			}
+	for h.Len() > 0 {
+		if err := ctx.Err(); err != nil {
+			return err
 		}
 
 		popped := heap.Pop(&h).(*FieldReader)
