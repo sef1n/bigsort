@@ -248,6 +248,7 @@ func ParseCSVTable(tableFile *os.File, cmpFieldNum int) (fields, error) {
 	return processingFields, nil
 }
 
+// nthField разбивает строку на поля по разделителю ',', возвращает n поле
 func nthField(line []byte, n int) ([]byte, error) {
 	start := 0
 	for i := 0; i < n; i++ {
@@ -293,7 +294,6 @@ func createTMP(ctx context.Context, processingFields fields, sourcePath, creatio
 
 	for i, v := range processingFields {
 		// Каждые 100 строк проверяем ctx
-		// TODO: вычисляем частоту проверки на основе tmpFileFieldsCount/len(fs)?
 		if i%100 == 0 {
 			if err = ctx.Err(); err != nil {
 				return
