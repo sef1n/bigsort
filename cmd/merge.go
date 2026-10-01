@@ -12,28 +12,33 @@ import (
 )
 
 type FieldReader struct {
-	cmpField int
+	cmpField int // Поле, по которому выполняется сортировка
 	line     string
 	reader   *bufio.Scanner
-	file     io.Reader
-	err      error
+	err      error // Ошибка чтения или io.EOF
+
+	// Возможно имеет смысл
+	// file     io.Reader
 }
 
-func NewFieldReader(f io.Reader) (*FieldReader, error) {
+// NewFieldReader выполняет инициализацию FieldReader, в случае ошибки устанавливает её в FieldReader.err.
+func NewFieldReader(f io.Reader) *FieldReader {
 	scn := bufio.NewScanner(f)
 	scn.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
-	fr := &FieldReader{reader: scn, file: f}
-	if !fr.Scan() {
-		if fr.err == nil {
-			fr.err = io.EOF
-		}
-	}
-	return fr, nil
+	fr := &FieldReader{reader: scn}
+	// Scan сам устанавливает ошибки (io.EOF считается ошибкой)
+	_ = fr.Scan()
+	return fr
 }
 
+// Scan выполняет Scanner.Scan, устанавливает новые line и err.
+// По окончании файла устанавливает err = io.EOF
 func (fr *FieldReader) Scan() bool {
 	if !fr.reader.Scan() {
 		fr.err = fr.reader.Err()
+		if fr.err == nil {
+			fr.err = io.EOF
+		}
 		return false
 	}
 	fr.line = fr.reader.Text()
@@ -54,10 +59,12 @@ func (fr *FieldReader) Scan() bool {
 
 type ReadersHeap []*FieldReader
 
+// sort.Interface
 func (h ReadersHeap) Len() int           { return len(h) }
 func (h ReadersHeap) Less(i, j int) bool { return h[i].cmpField < h[j].cmpField }
 func (h ReadersHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
+// heap.Interface
 func (h *ReadersHeap) Push(x any) {
 	*h = append(*h, x.(*FieldReader))
 }
@@ -70,19 +77,21 @@ func (h *ReadersHeap) Pop() any {
 	return x
 }
 
+// MergeWithContext выполняет merge-слияние файлов, пишет результат в out.
+// При ошибке не выполняет Flush().
+// TODO: принимает []io.Reader?
 func MergeWithContext(ctx context.Context, inS []*os.File, out io.Writer) error {
 	h := make(ReadersHeap, 0, len(inS))
 
 	for _, f := range inS {
-		r, err := NewFieldReader(f)
-		if err != nil {
-			return err
-		}
-		if r.err == nil {
-			h = append(h, r)
-		} else if r.err != io.EOF {
+		r := NewFieldReader(f)
+		if r.err != nil {
+			if r.err == io.EOF {
+				continue
+			}
 			return r.err
 		}
+		h = append(h, r)
 	}
 
 	heap.Init(&h)
@@ -108,7 +117,7 @@ func MergeWithContext(ctx context.Context, inS []*os.File, out io.Writer) error 
 
 		if popped.Scan() {
 			heap.Push(&h, popped)
-		} else if popped.err != nil && popped.err != io.EOF {
+		} else if popped.err != io.EOF {
 			return popped.err
 		}
 	}
