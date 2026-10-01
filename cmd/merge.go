@@ -96,7 +96,7 @@ func MergeWithContext(ctx context.Context, inS []*os.File, out io.Writer) error 
 
 	heap.Init(&h)
 
-	w := bufio.NewWriter(out)
+	w := bufio.NewWriterSize(out, 64*1024)
 	// defer w.Flush() - нужно возвращать ошибку
 
 	for counter := 0; h.Len() > 0; counter++ {
