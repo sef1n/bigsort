@@ -197,6 +197,9 @@ func genMiddleFiles(parentCtx context.Context, processingFields fields, source, 
 	// При любой ошибке удаляем все файлы
 	if err := g.Wait(); err != nil {
 		for _, f := range tmpFs {
+			if f == nil {
+				continue
+			}
 			_ = f.Close()
 			_ = os.Remove(f.Name())
 		}
