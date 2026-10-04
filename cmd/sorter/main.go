@@ -26,7 +26,7 @@ const (
 func main() {
 	cfg, err := ParseFlags()
 	if err != nil {
-		log.Fatalf("parsing error: %s", err)
+		log.Fatalf("flags parsing error: %s", err)
 	}
 
 	var parentCtx context.Context
