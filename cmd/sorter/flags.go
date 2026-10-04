@@ -15,7 +15,7 @@ type Cfg struct {
 
 var cfg Cfg
 
-func init() {
+func ParseFlags() (Cfg, error) {
 	inFile := pflag.StringP("input", "i", default_csv_name, "Path to source (input) file")
 	outFile := pflag.StringP("output", "o", default_csv_name, "Path to output file")
 
@@ -30,4 +30,5 @@ func init() {
 		*ctxTimeout,
 		*cmpField,
 	}
+	return cfg, nil
 }

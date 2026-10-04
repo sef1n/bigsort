@@ -24,6 +24,11 @@ const (
 )
 
 func main() {
+	cfg, err := ParseFlags()
+	if err != nil {
+		log.Fatalf("parsing error: %s", err)
+	}
+
 	var parentCtx context.Context
 	if cfg.ctxTimeout == 0 {
 		parentCtx = context.Background()
