@@ -4,112 +4,42 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"encoding/csv"
 	"fmt"
 	"io"
 	"log"
-	"math/rand"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime"
 	"sort"
-	"strconv"
-	"strings"
 	"syscall"
 
 	"golang.org/x/sync/errgroup"
 )
 
 const (
-	dataDisk           = "/mnt/FilesHDD"
-	csv_name           = "table.csv"
+	default_csv_name   = "table.csv"
 	predictTableLines  = 100
-	csvGenerationLines = 1 << 10
 	tmpFileFieldsCount = 1000
 )
 
-var genUsedLetters = []string{"a", "b", "c", "d", "e"}
-
-func input(scn *bufio.Scanner, msg string) (string, error) {
-	fmt.Print(msg)
-	if !scn.Scan() {
-		if err := scn.Err(); err != nil {
-			return "", err
-		}
-		return "", io.EOF
-	}
-	return scn.Text(), nil
-}
-
 func main() {
-	scn := bufio.NewScanner(os.Stdin)
+	var parentCtx context.Context
+	if cfg.ctxTimeout == 0 {
+		parentCtx = context.Background()
+	} else {
+		var parentCancel context.CancelFunc
+		parentCtx, parentCancel = context.WithTimeout(context.Background(), cfg.ctxTimeout)
+		defer parentCancel()
+	}
 
-	fmt.Println("g - for file generation")
-	fmt.Println("p - for csv parsing")
+	ctx, cancel := signal.NotifyContext(parentCtx, os.Interrupt, syscall.SIGTERM)
+	defer cancel()
 
-	action, err := input(scn, "Action (g/p): ")
-	if err != nil {
+	if err := ProcessExistingFile(ctx, cfg.cmpField, cfg.inFile, cfg.outFile); err != nil {
 		log.Fatal(err)
 	}
-	action = strings.ToLower(strings.TrimSpace(action))
-
-	switch action {
-	case "g":
-		filename, err := input(scn, fmt.Sprintf("output name (default %v): ", csv_name))
-		if err != nil {
-			log.Fatal(err)
-		}
-		filename = strings.TrimSpace(filename)
-		if filename == "" {
-			filename = csv_name
-		}
-		gen_file(filename)
-		fmt.Println("Table generated")
-
-	case "p":
-		// INPUT data
-		inFilename, err := input(scn, fmt.Sprintf("input table file (default %v): ", csv_name))
-		if err != nil {
-			log.Fatal(err)
-		}
-		inFilename = strings.TrimSpace(inFilename)
-		if inFilename == "" {
-			inFilename = csv_name
-		}
-		// OUTPUT data
-		outFilename, err := input(scn, fmt.Sprintf("output table file (default %v): ", inFilename))
-		if err != nil {
-			log.Fatal(err)
-		}
-		outFilename = strings.TrimSpace(outFilename)
-		if outFilename == "" {
-			outFilename = inFilename
-		}
-
-		cmpFieldStr, err := input(scn, fmt.Sprintf("sorting field num (from 0): "))
-		if err != nil {
-			log.Fatal(err)
-		}
-		cmpFieldStr = strings.TrimSpace(cmpFieldStr)
-		cmpField, err := strconv.Atoi(cmpFieldStr)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-		defer cancel()
-
-		if err := ProcessExistingFile(ctx, cmpField, inFilename, outFilename); err != nil {
-			log.Fatal(err)
-		}
-		fmt.Println("CSV parsed")
-
-	default:
-		// WARN: возвращет lower текст
-		fmt.Printf("Incorrect input: %q\n", action)
-		os.Exit(1)
-	}
+	fmt.Println("CSV parsed")
 }
 
 // ProcessExistingFile обрабатывает уже существующую csv таблицу inFilePath: parse, sort, split, merge.
@@ -229,7 +159,7 @@ func ParseCSVTable(tableFile *os.File, cmpFieldNum int) (fields, error) {
 				return nil, fmt.Errorf("parsing line %d: %w", lineNum, parseErr)
 			}
 
-			fmt.Printf("Creating new %s\n", line)
+			// fmt.Printf("Creating new %s\n", line)
 
 			fi, parseErr := newField(offset, string(nthF), cmpFieldNum)
 			if parseErr != nil {
@@ -318,38 +248,4 @@ func createTMP(ctx context.Context, processingFields fields, sourcePath, creatio
 		return
 	}
 	return tmpF, nil
-}
-
-func gen_data(n int) []string {
-	line := make([]string, 0, len(genUsedLetters)+1)
-	line = append(line, strconv.Itoa(rand.Int()))
-	for _, l := range genUsedLetters {
-		line = append(line, strings.Repeat(l, n))
-	}
-	return line
-}
-
-func gen_file(outName string) {
-	out, err := os.Create(filepath.Join(dataDisk, outName))
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer out.Close()
-
-	w := csv.NewWriter(out)
-	defer func() {
-		fmt.Println("Flushing...")
-		w.Flush()
-	}()
-
-	for n := 1; n <= csvGenerationLines; n++ {
-		fmt.Printf("Writing %v/%v\r", n, csvGenerationLines)
-		d := gen_data(n)
-		if err := w.Write(d); err != nil {
-			log.Fatal(err)
-		}
-	}
-
-	fmt.Println()
-	fmt.Println("All generated")
 }
