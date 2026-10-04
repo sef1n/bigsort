@@ -18,33 +18,34 @@ import (
 )
 
 const (
-	default_csv_name   = "table.csv"
 	predictTableLines  = 100
 	tmpFileFieldsCount = 1000
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println("merge completed")
+}
+
+func run() error {
 	cfg, err := ParseFlags()
 	if err != nil {
-		log.Fatalf("flags parsing error: %s", err)
+		return fmt.Errorf("parsing flags: %w", err)
 	}
 
-	var parentCtx context.Context
-	if cfg.ctxTimeout == 0 {
-		parentCtx = context.Background()
-	} else {
-		var parentCancel context.CancelFunc
-		parentCtx, parentCancel = context.WithTimeout(context.Background(), cfg.ctxTimeout)
-		defer parentCancel()
+	parentCtx := context.Background()
+	if cfg.ctxTimeout != 0 {
+		var cancel context.CancelFunc
+		parentCtx, cancel = context.WithTimeout(parentCtx, cfg.ctxTimeout)
+		defer cancel()
 	}
 
 	ctx, cancel := signal.NotifyContext(parentCtx, os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	if err := ProcessExistingFile(ctx, cfg.cmpField, cfg.inFile, cfg.outFile); err != nil {
-		log.Fatal(err)
-	}
-	fmt.Println("CSV parsed")
+	return ProcessExistingFile(ctx, cfg.cmpField, cfg.inFile, cfg.outFile)
 }
 
 // ProcessExistingFile обрабатывает уже существующую csv таблицу inFilePath: parse, sort, split, merge.
