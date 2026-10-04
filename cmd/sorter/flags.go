@@ -13,22 +13,15 @@ type Cfg struct {
 	cmpField   int
 }
 
-var cfg Cfg
-
 func ParseFlags() (Cfg, error) {
-	inFile := pflag.StringP("input", "i", default_csv_name, "Path to source (input) file")
-	outFile := pflag.StringP("output", "o", default_csv_name, "Path to output file")
+	var cfg Cfg
+	pflag.StringVarP(&cfg.inFile, "input", "i", default_csv_name, "Path to source (input) file")
+	pflag.StringVarP(&cfg.outFile, "output", "o", default_csv_name, "Path to output file")
 
-	ctxTimeout := pflag.DurationP("timeout", "t", 0, "Processing timeout")
-	cmpField := pflag.IntP("field", "f", 0, "Comparing field")
+	pflag.DurationVarP(&cfg.ctxTimeout, "timeout", "t", 0, "Processing timeout")
+	pflag.IntVarP(&cfg.cmpField, "field", "f", 0, "Comparing field")
 
 	pflag.Parse()
 
-	cfg = Cfg{
-		*inFile,
-		*outFile,
-		*ctxTimeout,
-		*cmpField,
-	}
 	return cfg, nil
 }
