@@ -7,6 +7,8 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const defaultCsvName = "table.csv"
+
 type Cfg struct {
 	inFile     string
 	outFile    string
@@ -18,8 +20,8 @@ func ParseFlags() (*Cfg, error) {
 	var cfg Cfg
 
 	// По дефолту перезаписываем файл
-	pflag.StringVarP(&cfg.inFile, "input", "i", default_csv_name, "Path to source (input) file")
-	pflag.StringVarP(&cfg.outFile, "output", "o", default_csv_name, "Path to output file")
+	pflag.StringVarP(&cfg.inFile, "input", "i", defaultCsvName, "Path to source (input) file")
+	pflag.StringVarP(&cfg.outFile, "output", "o", defaultCsvName, "Path to output file")
 
 	// По дефолту context бесконечный
 	pflag.DurationVarP(&cfg.ctxTimeout, "timeout", "t", 0, "Processing timeout")
