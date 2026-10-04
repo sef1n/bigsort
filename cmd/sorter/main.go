@@ -26,7 +26,6 @@ func main() {
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println("merge completed")
 }
 
 func run() error {
@@ -164,8 +163,6 @@ func ParseCSVTable(tableFile *os.File, cmpFieldNum int) (fields, error) {
 			if parseErr != nil {
 				return nil, fmt.Errorf("parsing line %d: %w", lineNum, parseErr)
 			}
-
-			// fmt.Printf("Creating new %s\n", line)
 
 			fi, parseErr := newField(offset, string(nthF), cmpFieldNum)
 			if parseErr != nil {
