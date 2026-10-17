@@ -20,7 +20,7 @@ func parseCSVTable(tablePath string, cmpFieldNum int) ([]fieldEntry, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer tableFile.Close()
+	defer func() { _ = tableFile.Close() }()
 
 	processingFields := make([]fieldEntry, 0, predictTableLines)
 	var offset int64

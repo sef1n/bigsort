@@ -55,7 +55,7 @@ func createTMP(ctx context.Context, processingEntries []fieldEntry, sourcePath, 
 	if err != nil {
 		return nil, err
 	}
-	defer source.Close()
+	defer func() { _ = source.Close() }()
 
 	tmpF, err = os.CreateTemp(creationPath, "")
 	if err != nil {
