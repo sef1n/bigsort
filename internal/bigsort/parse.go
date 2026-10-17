@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"strconv"
 )
 
@@ -14,20 +13,16 @@ const (
 	tmpFileFieldsCount = 1000
 )
 
-// getFields читает строки из файла, сохраняет Nth поля, возвращает структуру сравниваемых полей
-func parseCSVTable(tablePath string, cmpFieldNum int) ([]fieldEntry, error) {
-	tableFile, err := os.Open(tablePath)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tableFile.Close() }()
-
+// // parseCSVTable читает csv из r, возвращает записи с байтовыми offset'ами.
+// Offset — позиция начала строки в r; имеет смысл только для того же
+// источника (файла), который будет позже использован для Seek.
+func parseCSVTable(r io.Reader, cmpFieldNum int) ([]fieldEntry, error) {
 	processingFields := make([]fieldEntry, 0, predictTableLines)
 	var offset int64
-	r := bufio.NewReader(tableFile)
+	br := bufio.NewReader(r)
 
 	for lineNum := 0; ; lineNum++ {
-		line, readErr := r.ReadBytes('\n')
+		line, readErr := br.ReadBytes('\n')
 		if readErr != nil && readErr != io.EOF {
 			return nil, fmt.Errorf("read line %d: %w", lineNum, readErr)
 		}

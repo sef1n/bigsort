@@ -13,7 +13,12 @@ import (
 // Сохраняет результат в outFilePath
 func SortFile(ctx context.Context, cmpFieldNum int, inFilePath, outFilePath string) error {
 	// Parse
-	tableEntries, err := parseCSVTable(inFilePath, cmpFieldNum)
+	tableFile, err := os.Open(inFilePath)
+	if err != nil {
+		return err
+	}
+	tableEntries, err := parseCSVTable(tableFile, cmpFieldNum)
+	_ = tableFile.Close()
 	if err != nil {
 		return fmt.Errorf("parsing table: %w", err)
 	}
