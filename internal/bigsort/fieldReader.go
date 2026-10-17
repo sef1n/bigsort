@@ -2,11 +2,14 @@ package bigsort
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
 )
+
+var errNoComma = errors.New("no comma in line")
 
 type fieldReader struct {
 	cmpField int // Поле, по которому выполняется сортировка
@@ -42,7 +45,7 @@ func (fr *fieldReader) scan() bool {
 
 	idx := strings.IndexByte(fr.line, ',')
 	if idx < 0 {
-		fr.err = fmt.Errorf("no comma in line: %q", fr.line)
+		fr.err = fmt.Errorf("%w: %q", errNoComma, fr.line)
 		return false
 	}
 	v, err := strconv.Atoi(fr.line[:idx])

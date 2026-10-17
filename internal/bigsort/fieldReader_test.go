@@ -2,7 +2,6 @@ package bigsort
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"strconv"
 	"strings"
@@ -17,10 +16,8 @@ type fieldReaderTest struct {
 }
 
 func TestFieldReader(t *testing.T) {
-	// noComma проверяет точный текст ошибки "no comma in line: %q".
-	noComma := func(s string) func(error) bool {
-		want := fmt.Sprintf("no comma in line: %q", s)
-		return func(err error) bool { return err != nil && err.Error() == want }
+	noComma := func(err error) bool {
+		return errors.Is(err, errNoComma)
 	}
 	// eof: io.EOF (sentinel).
 	eof := func(err error) bool { return errors.Is(err, io.EOF) }
@@ -35,11 +32,11 @@ func TestFieldReader(t *testing.T) {
 	tests := []fieldReaderTest{
 		// Пустой ввод и строки без запятой.
 		{"empty", "", "", eof},
-		{"no comma", "1", "1", noComma("1")},
-		{"no comma nl", "1\n", "1", noComma("1")},
-		{"no comma crlf", "1\r\n", "1", noComma("1")},
-		{"no comma double nl", "1\n\n", "1", noComma("1")},
-		{"leading empty line", "\n1\n", "", noComma("")},
+		{"no comma", "1", "1", noComma},
+		{"no comma nl", "1\n", "1", noComma},
+		{"no comma crlf", "1\r\n", "1", noComma},
+		{"no comma double nl", "1\n\n", "1", noComma},
+		{"leading empty line", "\n1\n", "", noComma},
 
 		// Atoi-ошибки: fr.line уже установлен (до парсинга), поэтому в wantLine — вся строка.
 		{"only comma", ",", ",", atoi},
