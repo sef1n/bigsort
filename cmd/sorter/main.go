@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"cmp"
 	"context"
 	"fmt"
 	"io"
@@ -11,7 +12,8 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
-	"sort"
+	"slices"
+	"strconv"
 	"syscall"
 
 	"bigFiles/internal/bigsort"
@@ -53,17 +55,19 @@ func run() error {
 // Сохраняет результат в outFilePath
 func ProcessExistingFile(ctx context.Context, cmpFieldNum int, inFilePath, outFilePath string) error {
 	// Parse
-	tableFields, err := ParseCSVTable(inFilePath, cmpFieldNum)
+	tableEntries, err := ParseCSVTable(inFilePath, cmpFieldNum)
 	if err != nil {
 		return fmt.Errorf("parsing table: %w", err)
 	}
 
 	// Sort
-	sort.Sort(&tableFields)
+	slices.SortFunc(tableEntries, func(a, b fieldEntry) int {
+		return cmp.Compare(a.Entry, b.Entry)
+	})
 
 	// Split
 	tmpFilesDirPath := filepath.Dir(outFilePath)
-	tmpFiles, err := genMiddleFiles(ctx, tableFields, inFilePath, tmpFilesDirPath)
+	tmpFiles, err := genMiddleFiles(ctx, tableEntries, inFilePath, tmpFilesDirPath)
 	if err != nil {
 		return fmt.Errorf("generating middles: %w", err)
 	}
@@ -115,20 +119,20 @@ func ProcessExistingFile(ctx context.Context, cmpFieldNum int, inFilePath, outFi
 
 // genMiddleFiles создает tmp файлы содержащие processingFields. Кол-во строк в новых файлах = tmpFileFieldsCount.
 // Возвращает слайс файлов, закрывает и удаляет их при ошибке.
-func genMiddleFiles(parentCtx context.Context, processingFields fields, source, creationPath string) ([]*os.File, error) {
-	tmpFs := make([]*os.File, (len(processingFields)+tmpFileFieldsCount-1)/tmpFileFieldsCount)
+func genMiddleFiles(parentCtx context.Context, processingEntries []fieldEntry, source, creationPath string) ([]*os.File, error) {
+	tmpFs := make([]*os.File, (len(processingEntries)+tmpFileFieldsCount-1)/tmpFileFieldsCount)
 
 	g, ctx := errgroup.WithContext(parentCtx)
 	g.SetLimit(runtime.NumCPU() * 2)
 
 	// Разбиваем слайс на блоки, в отдельных горутинах пишем в файлы
-	for idx, start := 0, 0; start < len(processingFields); idx, start = idx+1, start+tmpFileFieldsCount {
-		end := min(start+tmpFileFieldsCount, len(processingFields))
+	for idx, start := 0, 0; start < len(processingEntries); idx, start = idx+1, start+tmpFileFieldsCount {
+		end := min(start+tmpFileFieldsCount, len(processingEntries))
 		g.Go(func() error {
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			f, err := createTMP(ctx, processingFields[start:end], source, creationPath)
+			f, err := createTMP(ctx, processingEntries[start:end], source, creationPath)
 			if err != nil {
 				return fmt.Errorf("creating block [%d:%d]: %w", start, end, err)
 			}
@@ -152,14 +156,14 @@ func genMiddleFiles(parentCtx context.Context, processingFields fields, source, 
 }
 
 // getFields читает строки из файла, сохраняет Nth поля, возвращает структуру сравниваемых полей
-func ParseCSVTable(tablePath string, cmpFieldNum int) (fields, error) {
+func ParseCSVTable(tablePath string, cmpFieldNum int) ([]fieldEntry, error) {
 	tableFile, err := os.Open(tablePath)
 	if err != nil {
 		return nil, err
 	}
 	defer tableFile.Close()
 
-	processingFields := make(fields, 0, predictTableLines)
+	processingFields := make([]fieldEntry, 0, predictTableLines)
 	var offset int64
 	r := bufio.NewReader(tableFile)
 
@@ -178,7 +182,7 @@ func ParseCSVTable(tablePath string, cmpFieldNum int) (fields, error) {
 				return nil, fmt.Errorf("parsing line %d: %w", lineNum, parseErr)
 			}
 
-			fi, parseErr := newField(offset, string(nthF), cmpFieldNum)
+			fi, parseErr := newFieldEntry(offset, string(nthF), cmpFieldNum)
 			if parseErr != nil {
 				return nil, fmt.Errorf("saving line %d: %w", lineNum, parseErr)
 			}
@@ -216,7 +220,7 @@ func nthField(line []byte, n int) ([]byte, error) {
 }
 
 // createTMP создает tmp файл, заполняет его строками processingFields.
-func createTMP(ctx context.Context, processingFields fields, sourcePath, creationPath string) (tmpF *os.File, err error) {
+func createTMP(ctx context.Context, processingEntries []fieldEntry, sourcePath, creationPath string) (tmpF *os.File, err error) {
 	source, err := os.Open(sourcePath)
 	if err != nil {
 		return nil, err
@@ -239,11 +243,11 @@ func createTMP(ctx context.Context, processingFields fields, sourcePath, creatio
 	w := bufio.NewWriter(tmpF)
 	reader := bufio.NewReader(source)
 
-	for _, v := range processingFields {
+	for _, v := range processingEntries {
 		if err = ctx.Err(); err != nil {
 			return
 		}
-		if _, err = source.Seek(v.offset, io.SeekStart); err != nil {
+		if _, err = source.Seek(v.Offset, io.SeekStart); err != nil {
 			return
 		}
 		reader.Reset(source)
@@ -265,4 +269,18 @@ func createTMP(ctx context.Context, processingFields fields, sourcePath, creatio
 		return
 	}
 	return tmpF, nil
+}
+
+// TODO: Любой Entry?
+type fieldEntry struct {
+	Offset int64
+	Entry  int
+}
+
+func newFieldEntry(off int64, l string, i int) (fieldEntry, error) {
+	v, err := strconv.Atoi(l)
+	if err != nil {
+		return fieldEntry{}, err
+	}
+	return fieldEntry{off, v}, nil
 }
