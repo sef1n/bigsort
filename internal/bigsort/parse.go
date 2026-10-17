@@ -3,6 +3,7 @@ package bigsort
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -55,18 +56,17 @@ func parseCSVTable(r io.Reader, cmpFieldNum int) ([]fieldEntry, error) {
 	return processingFields, nil
 }
 
+var errFieldNotFound error = errors.New("field not found")
+
 // nthField разбивает строку на поля по разделителю ',', возвращает n поле
 func nthField(line []byte, n int) ([]byte, error) {
 	start := 0
 	for i := 0; i < n; i++ {
 		idx := bytes.IndexByte(line[start:], ',')
 		if idx < 0 {
-			return nil, fmt.Errorf("field %d not found in %q", n, line)
+			return nil, fmt.Errorf("%w: no %d in %q", errFieldNotFound, n, line)
 		}
 		start += idx + 1
-		if start > len(line) {
-			return nil, fmt.Errorf("field %d beyond end", n)
-		}
 	}
 	end := bytes.IndexByte(line[start:], ',')
 	if end < 0 {
