@@ -79,10 +79,13 @@ func ProcessExistingFile(ctx context.Context, cmpFieldNum int, inFilePath, outFi
 	if err != nil {
 		return err
 	}
+	// Сохранияем имя до Close - гарантированно валидно
 	outNameTmp := outFile.Name()
+
+	keepTmpFile := false
 	defer func() {
-		_ = outFile.Close()
-		if err != nil {
+		_ = outFile.Close() // если вышли до явного Close
+		if !keepTmpFile {
 			_ = os.Remove(outNameTmp)
 		}
 	}()
@@ -91,12 +94,19 @@ func ProcessExistingFile(ctx context.Context, cmpFieldNum int, inFilePath, outFi
 		return err
 	}
 	// Закрываем перед переименованием (избегаем проблем на Windows)
+	// Ошибка Close означает, что данные могли не записаться.
+	// Файл считается невалидным и удаляется в defer.
 	if err = outFile.Close(); err != nil {
 		return err
 	}
+	// В случае ошибки переименовывания файл не удаляется,
+	// возвращаемая ошибка содержит имя файла с результатом
 	if err = os.Rename(outNameTmp, outFilePath); err != nil {
-		return err
+		keepTmpFile = true
+		return fmt.Errorf("merged file rename failed: %w; result saved to %s", err, outNameTmp)
 	}
+
+	keepTmpFile = true
 	return nil
 }
 
