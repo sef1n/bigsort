@@ -9,32 +9,31 @@ import (
 
 const defaultCsvName = "table.csv"
 
-type Cfg struct {
+type cfg struct {
 	inFile     string
 	outFile    string
 	ctxTimeout time.Duration
 	cmpField   int
 }
 
-func ParseFlags() (*Cfg, error) {
-	var cfg Cfg
-
+func parseFlags() (*cfg, error) {
+	var config cfg
 	// По дефолту перезаписываем файл
-	pflag.StringVarP(&cfg.inFile, "input", "i", defaultCsvName, "Path to source (input) file")
-	pflag.StringVarP(&cfg.outFile, "output", "o", defaultCsvName, "Path to output file")
+	pflag.StringVarP(&config.inFile, "input", "i", defaultCsvName, "Path to source (input) file")
+	pflag.StringVarP(&config.outFile, "output", "o", defaultCsvName, "Path to output file")
 
 	// По дефолту context бесконечный
-	pflag.DurationVarP(&cfg.ctxTimeout, "timeout", "t", 0, "Processing timeout")
-	pflag.IntVarP(&cfg.cmpField, "field", "f", 0, "Comparing field")
+	pflag.DurationVarP(&config.ctxTimeout, "timeout", "t", 0, "Processing timeout")
+	pflag.IntVarP(&config.cmpField, "field", "f", 0, "Comparing field")
 
 	pflag.Parse()
 
-	if cfg.ctxTimeout < 0 {
-		return nil, fmt.Errorf("timeout must be >= 0, got %v", cfg.ctxTimeout)
+	if config.ctxTimeout < 0 {
+		return nil, fmt.Errorf("timeout must be >= 0, got %v", config.ctxTimeout)
 	}
-	if cfg.cmpField < 0 {
-		return nil, fmt.Errorf("comparing field must be >= 0, got %v", cfg.cmpField)
+	if config.cmpField < 0 {
+		return nil, fmt.Errorf("comparing field must be >= 0, got %v", config.cmpField)
 	}
 
-	return &cfg, nil
+	return &config, nil
 }

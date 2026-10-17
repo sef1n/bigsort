@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-type FieldReader struct {
+type fieldReader struct {
 	cmpField int // Поле, по которому выполняется сортировка
 	line     string
 	reader   *bufio.Scanner
@@ -18,19 +18,19 @@ type FieldReader struct {
 	// file     io.Reader
 }
 
-// NewFieldReader выполняет инициализацию FieldReader, в случае ошибки устанавливает её в FieldReader.err.
-func NewFieldReader(f io.Reader) *FieldReader {
+// newFieldReader выполняет инициализацию FieldReader, в случае ошибки устанавливает её в FieldReader.err.
+func newFieldReader(f io.Reader) *fieldReader {
 	scn := bufio.NewScanner(f)
 	scn.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
-	fr := &FieldReader{reader: scn}
+	fr := &fieldReader{reader: scn}
 	// Scan сам устанавливает ошибки (io.EOF считается ошибкой)
-	_ = fr.Scan()
+	_ = fr.scan()
 	return fr
 }
 
-// Scan выполняет Scanner.Scan, устанавливает новые line и err.
+// scan выполняет Scanner.scan, устанавливает новые line и err.
 // По окончании файла устанавливает err = io.EOF
-func (fr *FieldReader) Scan() bool {
+func (fr *fieldReader) scan() bool {
 	if !fr.reader.Scan() {
 		fr.err = fr.reader.Err()
 		if fr.err == nil {
