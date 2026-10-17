@@ -13,9 +13,11 @@ const (
 	tmpFileFieldsCount = 1000
 )
 
-// // parseCSVTable читает csv из r, возвращает записи с байтовыми offset'ами.
-// Offset — позиция начала строки в r; имеет смысл только для того же
-// источника (файла), который будет позже использован для Seek.
+// parseCSVTable читает csv из r, возвращает записи с байтовыми offset'ами.
+//
+// Пустые строки (после отсечения \r\n) пропускаются и в результат
+// не попадают; offset при этом корректно сдвигается. Строки из
+// одних пробелов НЕ пропускаются и приводят к ошибке парсинга
 func parseCSVTable(r io.Reader, cmpFieldNum int) ([]fieldEntry, error) {
 	processingFields := make([]fieldEntry, 0, predictTableLines)
 	var offset int64
