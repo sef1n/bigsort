@@ -16,24 +16,25 @@ type cfg struct {
 	cmpField   int
 }
 
-func parseFlags() (*cfg, error) {
-	var config cfg
-	// По дефолту перезаписываем файл
-	pflag.StringVarP(&config.inFile, "input", "i", defaultCsvName, "Path to source (input) file")
-	pflag.StringVarP(&config.outFile, "output", "o", defaultCsvName, "Path to output file")
+func parseFlags(args []string) (*cfg, error) {
+	fs := pflag.NewFlagSet("sorter", pflag.ContinueOnError)
 
-	// По дефолту context бесконечный
-	pflag.DurationVarP(&config.ctxTimeout, "timeout", "t", 0, "Processing timeout")
-	pflag.IntVarP(&config.cmpField, "field", "f", 0, "Comparing field")
+	var c cfg
+	fs.StringVarP(&c.inFile, "input", "i", defaultCsvName, "Path to source (input) file")
+	fs.StringVarP(&c.outFile, "output", "o", defaultCsvName, "Path to output file")
+	fs.DurationVarP(&c.ctxTimeout, "timeout", "t", 0, "Processing timeout")
+	fs.IntVarP(&c.cmpField, "field", "f", 0, "Comparing field")
 
-	pflag.Parse()
-
-	if config.ctxTimeout < 0 {
-		return nil, fmt.Errorf("timeout must be >= 0, got %v", config.ctxTimeout)
-	}
-	if config.cmpField < 0 {
-		return nil, fmt.Errorf("comparing field must be >= 0, got %v", config.cmpField)
+	if err := fs.Parse(args); err != nil {
+		return nil, err
 	}
 
-	return &config, nil
+	if c.ctxTimeout < 0 {
+		return nil, fmt.Errorf("timeout must be >= 0, got %v", c.ctxTimeout)
+	}
+	if c.cmpField < 0 {
+		return nil, fmt.Errorf("comparing field must be >= 0, got %d", c.cmpField)
+	}
+
+	return &c, nil
 }

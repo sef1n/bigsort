@@ -12,13 +12,13 @@ import (
 )
 
 func main() {
-	if err := run(); err != nil {
+	if err := run(os.Args[1:]); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run() error {
-	config, err := parseFlags()
+func run(args []string) error {
+	config, err := parseFlags(args)
 	if err != nil {
 		return fmt.Errorf("parsing flags: %w", err)
 	}
