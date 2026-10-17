@@ -51,12 +51,7 @@ func run() error {
 // Сохраняет результат в outFilePath
 func ProcessExistingFile(ctx context.Context, cmpFieldNum int, inFilePath, outFilePath string) error {
 	// Parse
-	sourceTableF, err := os.Open(inFilePath)
-	if err != nil {
-		return err
-	}
-	defer sourceTableF.Close()
-	tableFields, err := ParseCSVTable(sourceTableF, cmpFieldNum)
+	tableFields, err := ParseCSVTable(inFilePath, cmpFieldNum)
 	if err != nil {
 		return err
 	}
@@ -144,7 +139,13 @@ func genMiddleFiles(parentCtx context.Context, processingFields fields, source, 
 }
 
 // getFields читает строки из файла, сохраняет Nth поля, возвращает структуру сравниваемых полей
-func ParseCSVTable(tableFile *os.File, cmpFieldNum int) (fields, error) {
+func ParseCSVTable(tablePath string, cmpFieldNum int) (fields, error) {
+	tableFile, err := os.Open(tablePath)
+	if err != nil {
+		return nil, err
+	}
+	defer tableFile.Close()
+
 	processingFields := make(fields, 0, predictTableLines)
 	var offset int64
 	r := bufio.NewReader(tableFile)
