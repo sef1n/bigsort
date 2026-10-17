@@ -53,7 +53,7 @@ func ProcessExistingFile(ctx context.Context, cmpFieldNum int, inFilePath, outFi
 	// Parse
 	tableFields, err := ParseCSVTable(inFilePath, cmpFieldNum)
 	if err != nil {
-		return err
+		return fmt.Errorf("parsing table: %w", err)
 	}
 
 	// Sort
@@ -63,7 +63,7 @@ func ProcessExistingFile(ctx context.Context, cmpFieldNum int, inFilePath, outFi
 	tmpFilesDirPath := filepath.Dir(outFilePath)
 	tmpFiles, err := genMiddleFiles(ctx, tableFields, inFilePath, tmpFilesDirPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("generating middles: %w", err)
 	}
 	// Defer close&&remove
 	defer func() {
@@ -77,12 +77,13 @@ func ProcessExistingFile(ctx context.Context, cmpFieldNum int, inFilePath, outFi
 	// Merge
 	outFile, err := os.CreateTemp(tmpFilesDirPath, "sorted-*.csv.tmp")
 	if err != nil {
-		return err
+		return fmt.Errorf("creating tmp result: %w", err)
 	}
 	// Сохранияем имя до Close - гарантированно валидно
 	outNameTmp := outFile.Name()
 
 	keepTmpFile := false
+	// TODO: обрабатывать ошибки?
 	defer func() {
 		_ = outFile.Close() // если вышли до явного Close
 		if !keepTmpFile {
@@ -91,19 +92,19 @@ func ProcessExistingFile(ctx context.Context, cmpFieldNum int, inFilePath, outFi
 	}()
 
 	if err = MergeWithContext(ctx, tmpFiles, outFile); err != nil {
-		return err
+		return fmt.Errorf("merging middles: %w", err)
 	}
 	// Закрываем перед переименованием (избегаем проблем на Windows)
 	// Ошибка Close означает, что данные могли не записаться.
 	// Файл считается невалидным и удаляется в defer.
 	if err = outFile.Close(); err != nil {
-		return err
+		return fmt.Errorf("closing output file: %w", err)
 	}
 	// В случае ошибки переименовывания файл не удаляется,
 	// возвращаемая ошибка содержит имя файла с результатом
 	if err = os.Rename(outNameTmp, outFilePath); err != nil {
 		keepTmpFile = true
-		return fmt.Errorf("merged file rename failed: %w; result saved to %s", err, outNameTmp)
+		return fmt.Errorf("rename %s -> %s: %w; result saved to %s", outNameTmp, outFilePath, err, outNameTmp)
 	}
 
 	keepTmpFile = true
