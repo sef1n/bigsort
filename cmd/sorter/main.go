@@ -14,6 +14,8 @@ import (
 	"sort"
 	"syscall"
 
+	"bigFiles/internal/bigsort"
+
 	"golang.org/x/sync/errgroup"
 )
 
@@ -91,7 +93,7 @@ func ProcessExistingFile(ctx context.Context, cmpFieldNum int, inFilePath, outFi
 		}
 	}()
 
-	if err = MergeWithContext(ctx, tmpFiles, outFile); err != nil {
+	if err = bigsort.MergeWithContext(ctx, tmpFiles, outFile); err != nil {
 		return fmt.Errorf("merging middles: %w", err)
 	}
 	// Закрываем перед переименованием (избегаем проблем на Windows)
