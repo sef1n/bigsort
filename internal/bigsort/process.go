@@ -1,9 +1,12 @@
 package bigsort
 
 import (
+	"bufio"
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"slices"
@@ -17,20 +20,23 @@ func SortFile(ctx context.Context, cmpFieldNum int, inFilePath, outFilePath stri
 	if err != nil {
 		return err
 	}
-	tableEntries, err := parseCSVTable(tableFile, cmpFieldNum)
+	// WARN: заглушка
+	tableParseStep, err := parseCSVTable(bufio.NewReader(tableFile), cmpFieldNum, 1<<60, int64(0))
 	_ = tableFile.Close()
 	if err != nil {
-		return fmt.Errorf("parsing table: %w", err)
+		if !errors.Is(err, io.EOF) {
+			return fmt.Errorf("parsing table: %w", err)
+		}
 	}
 
 	// Sort
-	slices.SortFunc(tableEntries, func(a, b fieldEntry) int {
+	slices.SortFunc(tableParseStep.entries, func(a, b fieldEntry) int {
 		return cmp.Compare(a.Entry, b.Entry)
 	})
 
 	// Split
 	tmpFilesDirPath := filepath.Dir(outFilePath)
-	tmpFiles, err := genMiddleFiles(ctx, tableEntries, inFilePath, tmpFilesDirPath)
+	tmpFiles, err := genMiddleFiles(ctx, tableParseStep.entries, inFilePath, tmpFilesDirPath)
 	if err != nil {
 		return fmt.Errorf("generating middles: %w", err)
 	}
