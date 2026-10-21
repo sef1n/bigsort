@@ -1,6 +1,8 @@
 package bigsort
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand"
@@ -9,16 +11,18 @@ import (
 	"testing"
 )
 
+// parse_bench_test.go
 func BenchmarkParseCSVTable(b *testing.B) {
 	for _, n := range []int{100, 1000, 10000} {
 		b.Run(fmt.Sprintf("lines=%d", n), func(b *testing.B) {
-			input := utilGenLines(n)      // готовим ОДИН раз
-			b.SetBytes(int64(len(input))) // для MB/s
+			input := utilGenLines(n)
+			maxParsed := n + 1
+			b.SetBytes(int64(len(input)))
 			b.ReportAllocs()
-			b.ResetTimer() // не считаем генерацию
+			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				r := strings.NewReader(input) // свежий reader на итерацию
-				if _, err := parseCSVTable(r, 0); err != nil && err != io.EOF {
+				br := bufio.NewReader(strings.NewReader(input))
+				if _, err := parseCSVTable(br, 0, maxParsed, 0); err != nil && !errors.Is(err, io.EOF) {
 					b.Fatal(err)
 				}
 			}
@@ -31,11 +35,12 @@ func utilGenLines(n int) string {
 	letters := []string{"a", "b", "c", "d", "e"}
 	for i := 0; i < n; i++ {
 		sb.WriteString(strconv.Itoa(rand.Int()))
+		sb.WriteByte(',')
 		for _, l := range letters {
-			sb.WriteByte(',')
 			sb.WriteString(strings.Repeat(l, i))
+			sb.WriteByte(',')
 		}
-		sb.WriteString(",x\n")
+		sb.WriteString("x\n")
 	}
 	return sb.String()
 }

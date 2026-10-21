@@ -14,46 +14,75 @@ const (
 	tmpFileFieldsCount = 1000
 )
 
-// parseCSVTable читает csv из r, возвращает записи с байтовыми offset'ами.
-//
-// Пустые строки (после отсечения \r\n) пропускаются и в результат
-// не попадают; offset при этом корректно сдвигается. Строки из
-// одних пробелов НЕ пропускаются и приводят к ошибке парсинга
-func parseCSVTable(r io.Reader, cmpFieldNum int) ([]fieldEntry, error) {
-	processingFields := make([]fieldEntry, 0, predictTableLines)
-	var offset int64
-	br := bufio.NewReader(r)
+type parseStep struct {
+	entries   []fieldEntry
+	readlines int   // число итераций ReadBytes, включая пустую EOF-итерацию — для нумерации ошибок
+	offset    int64 // offset начала следующей строки
+}
 
-	for lineNum := 0; ; lineNum++ {
+type parseError struct {
+	Line   int
+	Offset int64 // байтовый offset начала проблемной строки
+	Err    error // исходная ошибка
+}
+
+func (e *parseError) Error() string {
+	return fmt.Sprintf("line %d (offset %d): %v", e.Line, e.Offset, e.Err)
+}
+
+func (e *parseError) Unwrap() error { return e.Err }
+
+// parseCSVTable читает не более maxParsed непустых строк из br.
+// offset — байтовая позиция начала чтения; возвращаемый offset —
+// начало следующей строки (для продолжения).
+//
+// Возвращает:
+//   - (parseStep, nil) — чанк прочитан, данные есть, продолжаем.
+//   - (parseStep, io.EOF)  — последний чанк; step валиден.
+//   - (step{}, *parseError) — ошибка; step невалиден.
+//
+// Пустые строки (после отсечения \r\n) пропускаются; строки из
+// одних пробелов — ошибка парсинга.
+// Требует maxParsed > 0.
+func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsed int, offset int64) (parseStep, error) {
+	if maxParsed <= 0 {
+		return parseStep{}, &parseError{0, offset, fmt.Errorf("maxParsed must be > 0, got %d", maxParsed)}
+	}
+	processingFields := make([]fieldEntry, 0, maxParsed)
+
+	readLines, parsedLines := 0, 0
+	for parsedLines < maxParsed {
 		line, readErr := br.ReadBytes('\n')
 		if readErr != nil && readErr != io.EOF {
-			return nil, fmt.Errorf("read line %d: %w", lineNum, readErr)
+			return parseStep{}, &parseError{readLines, offset, fmt.Errorf("reading: %w", readErr)}
 		}
+		readLines++
 
-		RawLineLen := int64(len(line))
+		rawLineLen := int64(len(line))
 		line = bytes.TrimRight(line, "\r\n")
 
 		if len(line) > 0 {
 			nthF, parseErr := nthField(line, cmpFieldNum)
 			if parseErr != nil {
-				return nil, fmt.Errorf("parsing line %d: %w", lineNum, parseErr)
+				return parseStep{}, &parseError{readLines, offset, fmt.Errorf("parsing: %w", parseErr)}
 			}
 
-			fi, parseErr := newFieldEntry(offset, string(nthF), cmpFieldNum)
+			fi, parseErr := newFieldEntry(offset, string(nthF))
 			if parseErr != nil {
-				return nil, fmt.Errorf("saving line %d: %w", lineNum, parseErr)
+				return parseStep{}, &parseError{readLines, offset, fmt.Errorf("saving: %w", parseErr)}
 			}
 
 			processingFields = append(processingFields, fi)
+			parsedLines++
 		}
 
-		offset += RawLineLen
+		offset += rawLineLen
 
 		if readErr == io.EOF {
-			break
+			return parseStep{processingFields, readLines, offset}, io.EOF
 		}
 	}
-	return processingFields, nil
+	return parseStep{processingFields, readLines, offset}, nil
 }
 
 var errFieldNotFound error = errors.New("field not found")
@@ -81,8 +110,8 @@ type fieldEntry struct {
 	Entry  int
 }
 
-func newFieldEntry(off int64, l string, i int) (fieldEntry, error) {
-	v, err := strconv.Atoi(l)
+func newFieldEntry(off int64, e string) (fieldEntry, error) {
+	v, err := strconv.Atoi(e)
 	if err != nil {
 		return fieldEntry{}, err
 	}
