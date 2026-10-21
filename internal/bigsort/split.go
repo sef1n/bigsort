@@ -64,7 +64,7 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 	// Параллельно парсим и разбиваем на временные файлы
 	var tableOffset int64
 	for curChunk := 0; ; curChunk++ {
-		if err := gCtx.Err(); err != nil {
+		if gCtx.Err() != nil {
 			if gerr := g.Wait(); gerr != nil {
 				return nil, gerr
 			}
@@ -105,6 +105,7 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 	return tmpFiles, nil
 }
 
+// processChunk выполняет сортировку и разбиение чанков на tmp файлы
 func processChunk(parentCtx context.Context, chunk int, entries []fieldEntry, inFilePath, tmpFilesDirPath string) ([]*os.File, error) {
 	if err := parentCtx.Err(); err != nil {
 		return nil, err
