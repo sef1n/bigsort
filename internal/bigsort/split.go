@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	// TODO: linesChunk -> bytesChunk (flag)
 	linesChunk             = 1000
 	defaultChunkAllocation = 100
 )
@@ -62,7 +63,6 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 	}()
 
 	// Параллельно парсим и разбиваем на временные файлы
-	var tableOffset int64
 	for curChunk := 0; ; curChunk++ {
 		if gCtx.Err() != nil {
 			if gerr := g.Wait(); gerr != nil {
@@ -72,11 +72,10 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 		}
 		// Chunk parsing
 		var tableParseStep parseStep
-		tableParseStep, err = parseCSVTable(tableReader, cmpFieldNum, linesChunk, tableOffset)
+		tableParseStep, err = parseCSVTable(tableReader, cmpFieldNum, linesChunk)
 		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("parsing table: %w", err)
 		}
-		tableOffset = tableParseStep.offset
 
 		// Захватываем переменные (go < 1.22)
 		entries := tableParseStep.entries
@@ -113,7 +112,7 @@ func processChunk(parentCtx context.Context, chunk int, entries []fieldEntry, in
 
 	// Chunk sorting
 	slices.SortFunc(entries, func(a, b fieldEntry) int {
-		return cmp.Compare(a.Entry, b.Entry)
+		return cmp.Compare(a.field, b.field)
 	})
 	// Проверка контекста в genMiddleFiles
 
@@ -167,12 +166,6 @@ func genMiddleFiles(parentCtx context.Context, processingEntries []fieldEntry, s
 
 // createTMP создает tmp файл, заполняет его строками processingFields.
 func createTMP(ctx context.Context, processingEntries []fieldEntry, sourcePath, creationPath string) (tmpF *os.File, err error) {
-	source, err := os.Open(sourcePath)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = source.Close() }()
-
 	tmpF, err = os.CreateTemp(creationPath, "")
 	if err != nil {
 		return
@@ -187,24 +180,16 @@ func createTMP(ctx context.Context, processingEntries []fieldEntry, sourcePath, 
 	}()
 
 	w := bufio.NewWriter(tmpF)
-	reader := bufio.NewReader(source)
 
 	for _, v := range processingEntries {
 		if err = ctx.Err(); err != nil {
 			return
 		}
-		if _, err = source.Seek(v.Offset, io.SeekStart); err != nil {
+
+		if _, err = w.Write(v.line); err != nil {
 			return
 		}
-		reader.Reset(source)
-
-		var line string
-		line, err = reader.ReadString('\n')
-		if err != nil && err != io.EOF {
-			return
-		}
-
-		if _, err = w.WriteString(line); err != nil {
+		if err = w.WriteByte('\n'); err != nil {
 			return
 		}
 	}

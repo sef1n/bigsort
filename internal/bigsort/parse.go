@@ -16,18 +16,16 @@ const (
 
 type parseStep struct {
 	entries   []fieldEntry
-	readlines int   // число итераций ReadBytes, включая пустую EOF-итерацию — для нумерации ошибок
-	offset    int64 // offset начала следующей строки
+	readlines int // число итераций ReadBytes, включая пустую EOF-итерацию — для нумерации ошибок
 }
 
 type parseError struct {
-	Line   int
-	Offset int64 // байтовый offset начала проблемной строки
-	Err    error // исходная ошибка
+	Line int
+	Err  error // исходная ошибка
 }
 
 func (e *parseError) Error() string {
-	return fmt.Sprintf("line %d (offset %d): %v", e.Line, e.Offset, e.Err)
+	return fmt.Sprintf("line %d: %v", e.Line, e.Err)
 }
 
 func (e *parseError) Unwrap() error { return e.Err }
@@ -44,45 +42,42 @@ func (e *parseError) Unwrap() error { return e.Err }
 // Пустые строки (после отсечения \r\n) пропускаются; строки из
 // одних пробелов — ошибка парсинга.
 // Требует maxParsed > 0.
-func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsed int, offset int64) (parseStep, error) {
+func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsed int) (parseStep, error) {
 	if maxParsed <= 0 {
-		return parseStep{}, &parseError{0, offset, fmt.Errorf("maxParsed must be > 0, got %d", maxParsed)}
+		return parseStep{}, &parseError{0, fmt.Errorf("maxParsed must be > 0, got %d", maxParsed)}
 	}
 	processingFields := make([]fieldEntry, 0, maxParsed)
 
 	readLines, parsedLines := 0, 0
 	for parsedLines < maxParsed {
 		line, readErr := br.ReadBytes('\n')
-		if readErr != nil && readErr != io.EOF {
-			return parseStep{}, &parseError{readLines, offset, fmt.Errorf("reading: %w", readErr)}
-		}
 		readLines++
+		if readErr != nil && readErr != io.EOF {
+			return parseStep{}, &parseError{readLines, fmt.Errorf("reading: %w", readErr)}
+		}
 
-		rawLineLen := int64(len(line))
 		line = bytes.TrimRight(line, "\r\n")
 
 		if len(line) > 0 {
 			nthF, parseErr := nthField(line, cmpFieldNum)
 			if parseErr != nil {
-				return parseStep{}, &parseError{readLines, offset, fmt.Errorf("parsing: %w", parseErr)}
+				return parseStep{}, &parseError{readLines, fmt.Errorf("parsing: %w", parseErr)}
 			}
 
-			fi, parseErr := newFieldEntry(offset, string(nthF))
+			fi, parseErr := newFieldEntry(line, string(nthF))
 			if parseErr != nil {
-				return parseStep{}, &parseError{readLines, offset, fmt.Errorf("saving: %w", parseErr)}
+				return parseStep{}, &parseError{readLines, fmt.Errorf("saving: %w", parseErr)}
 			}
 
 			processingFields = append(processingFields, fi)
 			parsedLines++
 		}
 
-		offset += rawLineLen
-
 		if readErr == io.EOF {
-			return parseStep{processingFields, readLines, offset}, io.EOF
+			return parseStep{processingFields, readLines}, io.EOF
 		}
 	}
-	return parseStep{processingFields, readLines, offset}, nil
+	return parseStep{processingFields, readLines}, nil
 }
 
 var errFieldNotFound error = errors.New("field not found")
@@ -106,14 +101,14 @@ func nthField(line []byte, n int) ([]byte, error) {
 
 // TODO: Любой Entry?
 type fieldEntry struct {
-	Offset int64
-	Entry  int
+	line  []byte
+	field int
 }
 
-func newFieldEntry(off int64, e string) (fieldEntry, error) {
-	v, err := strconv.Atoi(e)
+func newFieldEntry(line []byte, field string) (fieldEntry, error) {
+	v, err := strconv.Atoi(field)
 	if err != nil {
 		return fieldEntry{}, err
 	}
-	return fieldEntry{off, v}, nil
+	return fieldEntry{line, v}, nil
 }

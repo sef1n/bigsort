@@ -22,7 +22,7 @@ func BenchmarkParseCSVTable(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				br := bufio.NewReader(strings.NewReader(input))
-				if _, err := parseCSVTable(br, 0, maxParsed, 0); err != nil && !errors.Is(err, io.EOF) {
+				if _, err := parseCSVTable(br, 0, maxParsed); err != nil && !errors.Is(err, io.EOF) {
 					b.Fatal(err)
 				}
 			}

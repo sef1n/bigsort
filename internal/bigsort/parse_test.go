@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -37,10 +38,10 @@ func TestParseCSVTable(t *testing.T) {
 	}
 	tests := []parseTest{
 		// --- Пусто / только переводы строк → io.EOF ---
-		{"empty", 0, 1, "", parseStep{[]fieldEntry{}, 1, 0}, eof},
-		{"only newlines", 0, 1, "\n\n", parseStep{[]fieldEntry{}, 3, 2}, eof},
+		{"empty", 0, 1, "", parseStep{[]fieldEntry{}, 1}, eof},
+		{"only newlines", 0, 1, "\n\n", parseStep{[]fieldEntry{}, 3}, eof},
 
-		// --- Невалидный maxP → *parseError (не io.EOF), step zero, offset сохранён ---
+		// --- Невалидный maxP → *parseError ---
 		{"maxP=0", 0, 0, "1,a\n", parseStep{}, isParseError(0)},
 		{"maxP=-1", 0, -1, "1,a\n", parseStep{}, isParseError(0)},
 
@@ -52,48 +53,100 @@ func TestParseCSVTable(t *testing.T) {
 		{"whitespace line errors", 0, 1, "   \n", parseStep{}, atoi},
 
 		// --- Ровно maxP → nil (без EOF) ---
-		{"one line exactly max", 0, 1, "1,a\n", parseStep{[]fieldEntry{{0, 1}}, 1, 4}, nilErr},
-		{"two lines exactly max", 0, 2, "1,a\n2,b\n", parseStep{[]fieldEntry{{0, 1}, {4, 2}}, 2, 8}, nilErr},
+		{
+			"one line exactly max", 0, 1, "1,a\n",
+			parseStep{[]fieldEntry{{[]byte("1,a"), 1}}, 1},
+			nilErr,
+		},
+		{
+			"two lines exactly max", 0, 2, "1,a\n2,b\n",
+			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 2},
+			nilErr,
+		},
 
 		// --- Файл кончился → io.EOF с данными (+ пустая EOF-итерация) ---
-		{"one line with EOF", 0, 5, "1,a\n", parseStep{[]fieldEntry{{0, 1}}, 2, 4}, eof},
-		{"two lines with EOF", 0, 5, "1,a\n2,b\n", parseStep{[]fieldEntry{{0, 1}, {4, 2}}, 3, 8}, eof},
-		{"three lines with EOF", 0, 5, "1,a\n2,b\n3,c\n", parseStep{[]fieldEntry{{0, 1}, {4, 2}, {8, 3}}, 4, 12}, eof},
-		{"cmpF=1", 1, 5, "a,10\nb,20\n", parseStep{[]fieldEntry{{0, 10}, {5, 20}}, 3, 10}, eof},
-		{"crlf", 0, 5, "1,a\r\n2,b\r\n", parseStep{[]fieldEntry{{0, 1}, {5, 2}}, 3, 10}, eof},
-		{"empty middle line", 0, 5, "1,a\n\n2,b\n", parseStep{[]fieldEntry{{0, 1}, {5, 2}}, 4, 9}, eof},
-		{"no trailing nl", 0, 5, "1,a\n2,b", parseStep{[]fieldEntry{{0, 1}, {4, 2}}, 2, 7}, eof},
+		{
+			"one line with EOF", 0, 5, "1,a\n",
+			parseStep{[]fieldEntry{{[]byte("1,a"), 1}}, 2},
+			eof,
+		},
+		{
+			"two lines with EOF", 0, 5, "1,a\n2,b\n",
+			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 3},
+			eof,
+		},
+		{
+			"three lines with EOF", 0, 5, "1,a\n2,b\n3,c\n",
+			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}, {[]byte("3,c"), 3}}, 4},
+			eof,
+		},
+		{
+			"cmpF=1", 1, 5, "a,10\nb,20\n",
+			parseStep{[]fieldEntry{{[]byte("a,10"), 10}, {[]byte("b,20"), 20}}, 3},
+			eof,
+		},
+		{
+			"crlf", 0, 5, "1,a\r\n2,b\r\n",
+			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 3},
+			eof,
+		},
+		{
+			"empty middle line", 0, 5, "1,a\n\n2,b\n",
+			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 4},
+			eof,
+		},
+		{
+			"no trailing nl", 0, 5, "1,a\n2,b",
+			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 2},
+			eof,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseCSVTable(bufio.NewReader(strings.NewReader(tc.input)), tc.cmpF, tc.maxP, 0)
+			got, err := parseCSVTable(bufio.NewReader(strings.NewReader(tc.input)), tc.cmpF, tc.maxP)
 
 			if !tc.wantErr(err) {
 				t.Fatalf("err: got %v, check failed", err)
 			}
 			// При ошибке (не EOF) step должен быть zero value.
 			if err != nil && !errors.Is(err, io.EOF) {
-				if got.entries != nil || got.readlines != 0 || got.offset != 0 {
+				if got.entries != nil || got.readlines != 0 {
 					t.Fatalf("step on error: got %+v, want zero", got)
 				}
 				return
 			}
-			// entries
+
+			// entries: сначала длина
 			if len(got.entries) != len(tc.want.entries) {
-				t.Fatalf("entries len: got %d, want %d (got=%v)", len(got.entries), len(tc.want.entries), got.entries)
+				t.Fatalf("entries len: got %d, want %d", len(got.entries), len(tc.want.entries))
 			}
+
+			// entries: поэлементно, с превью для line
 			for i := range got.entries {
-				if got.entries[i] != tc.want.entries[i] {
-					t.Errorf("entries[%d]: got %+v, want %+v", i, got.entries[i], tc.want.entries[i])
+				g, w := got.entries[i], tc.want.entries[i]
+
+				if g.field != w.field {
+					t.Errorf("entries[%d].field: got %d, want %d", i, g.field, w.field)
+				}
+				if !slices.Equal(g.line, w.line) {
+					t.Errorf("entries[%d].line: got %d bytes %q, want %d bytes %q",
+						i, len(g.line), truncate(g.line, 30),
+						len(w.line), truncate(w.line, 30))
 				}
 			}
+
 			// readlines / offset
 			if got.readlines != tc.want.readlines {
 				t.Errorf("readlines: got %d, want %d", got.readlines, tc.want.readlines)
 			}
-			if got.offset != tc.want.offset {
-				t.Errorf("offset: got %d, want %d", got.offset, tc.want.offset)
-			}
 		})
 	}
+}
+
+// truncate возвращает превью []byte для лога: не более n байт.
+func truncate(b []byte, n int) string {
+	if len(b) <= n {
+		return string(b)
+	}
+	return string(b[:n]) + "..."
 }

@@ -23,6 +23,7 @@ type fieldReader struct {
 
 // newFieldReader выполняет инициализацию FieldReader, в случае ошибки устанавливает её в FieldReader.err.
 func newFieldReader(f io.Reader) *fieldReader {
+	// TODO: bufio.Reader.ReadBytes без лимита на длину
 	scn := bufio.NewScanner(f)
 	scn.Buffer(make([]byte, 0, 64*1024), 16*1024*1024)
 	fr := &fieldReader{reader: scn}
