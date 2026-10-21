@@ -36,8 +36,10 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 	defer func() { _ = tableFile.Close() }()
 	tableReader := bufio.NewReader(tableFile)
 
-	var mu sync.Mutex
-	tmpFiles := make([]*os.File, 0, defaultChunkAllocation)
+	var (
+		mu       sync.Mutex
+		tmpFiles = make([]*os.File, 0, defaultChunkAllocation)
+	)
 
 	ctx, cancel := context.WithCancel(parentCtx)
 	defer cancel()
@@ -82,21 +84,10 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 
 		// Chunk sorting && spliting
 		g.Go(func() error {
-			if err := gCtx.Err(); err != nil {
+			tmpChunkFiles, err := processChunk(gCtx, chunk, entries, inFilePath, tmpFilesDirPath)
+			if err != nil {
 				return err
 			}
-			// Chunk sorting
-			slices.SortFunc(entries, func(a, b fieldEntry) int {
-				return cmp.Compare(a.Entry, b.Entry)
-			})
-			// Проверка контекста в genMiddleFiles
-
-			// Chunk spliting
-			tmpChunkFiles, err := genMiddleFiles(gCtx, entries, inFilePath, tmpFilesDirPath)
-			if err != nil {
-				return fmt.Errorf("generating middles for chunk %v: %w", chunk, err)
-			}
-
 			mu.Lock()
 			tmpFiles = append(tmpFiles, tmpChunkFiles...)
 			mu.Unlock()
@@ -112,6 +103,26 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 	}
 	ok = true
 	return tmpFiles, nil
+}
+
+func processChunk(parentCtx context.Context, chunk int, entries []fieldEntry, inFilePath, tmpFilesDirPath string) ([]*os.File, error) {
+	if err := parentCtx.Err(); err != nil {
+		return nil, err
+	}
+
+	// Chunk sorting
+	slices.SortFunc(entries, func(a, b fieldEntry) int {
+		return cmp.Compare(a.Entry, b.Entry)
+	})
+	// Проверка контекста в genMiddleFiles
+
+	// Chunk spliting
+	tmpChunkFiles, err := genMiddleFiles(parentCtx, entries, inFilePath, tmpFilesDirPath)
+	if err != nil {
+		return nil, fmt.Errorf("generating middles for chunk %v: %w", chunk, err)
+	}
+
+	return tmpChunkFiles, nil
 }
 
 // genMiddleFiles создает tmp файлы содержащие processingFields. Кол-во строк в новых файлах = tmpFileFieldsCount.
