@@ -12,6 +12,7 @@ import (
 )
 
 // genMiddleFiles создает tmp файлы содержащие processingFields. Кол-во строк в новых файлах = tmpFileFieldsCount.
+// Одновременно запускает не более NumCPU*2 горутин.
 // Возвращает слайс файлов, закрывает и удаляет их при ошибке.
 func genMiddleFiles(parentCtx context.Context, processingEntries []fieldEntry, source, creationPath string) ([]*os.File, error) {
 	tmpFs := make([]*os.File, (len(processingEntries)+tmpFileFieldsCount-1)/tmpFileFieldsCount)
