@@ -2,14 +2,117 @@ package bigsort
 
 import (
 	"bufio"
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"runtime"
+	"slices"
+	"sync"
 
 	"golang.org/x/sync/errgroup"
 )
+
+const (
+	linesChunk             = 1000
+	defaultChunkAllocation = 100
+)
+
+// splitOnSortedChunks
+// Последовательно читает файл чанками по linesChunk строк.
+// Пул воркеров (NumCPU*2) параллельно сортирует чанки и пишет их
+// в отдельные tmp-файлы (по одному на блок tmpFileFieldsCount строк).
+//
+// Tmp-файлы пишутся через Seek по offset'ам
+// При больших файлах может превысить ulimit
+func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath, tmpFilesDirPath string) ([]*os.File, error) {
+	// Parse
+	tableFile, err := os.Open(inFilePath)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tableFile.Close() }()
+	tableReader := bufio.NewReader(tableFile)
+
+	var mu sync.Mutex
+	tmpFiles := make([]*os.File, 0, defaultChunkAllocation)
+
+	ctx, cancel := context.WithCancel(parentCtx)
+	defer cancel()
+	g, gCtx := errgroup.WithContext(ctx)
+	g.SetLimit(runtime.NumCPU() * 2)
+
+	// Отложенная очистка в случае ошибки
+	ok := false
+	defer func() {
+		if ok {
+			return
+		}
+		cancel()
+		_ = g.Wait()
+		for _, f := range tmpFiles {
+			name := f.Name()
+			_ = f.Close()
+			_ = os.Remove(name)
+		}
+	}()
+
+	// Параллельно парсим и разбиваем на временные файлы
+	var tableOffset int64
+	for curChunk := 0; ; curChunk++ {
+		if err := gCtx.Err(); err != nil {
+			if gerr := g.Wait(); gerr != nil {
+				return nil, gerr
+			}
+			return nil, gCtx.Err() // fallback
+		}
+		// Chunk parsing
+		var tableParseStep parseStep
+		tableParseStep, err = parseCSVTable(tableReader, cmpFieldNum, linesChunk, tableOffset)
+		if err != nil && !errors.Is(err, io.EOF) {
+			return nil, fmt.Errorf("parsing table: %w", err)
+		}
+		tableOffset = tableParseStep.offset
+
+		// Захватываем переменные (go < 1.22)
+		entries := tableParseStep.entries
+		chunk := curChunk
+
+		// Chunk sorting && spliting
+		g.Go(func() error {
+			if err := gCtx.Err(); err != nil {
+				return err
+			}
+			// Chunk sorting
+			slices.SortFunc(entries, func(a, b fieldEntry) int {
+				return cmp.Compare(a.Entry, b.Entry)
+			})
+			// Проверка контекста в genMiddleFiles
+
+			// Chunk spliting
+			tmpChunkFiles, err := genMiddleFiles(gCtx, entries, inFilePath, tmpFilesDirPath)
+			if err != nil {
+				return fmt.Errorf("generating middles for chunk %v: %w", chunk, err)
+			}
+
+			mu.Lock()
+			tmpFiles = append(tmpFiles, tmpChunkFiles...)
+			mu.Unlock()
+			return nil
+		})
+
+		if errors.Is(err, io.EOF) {
+			break
+		}
+	}
+	if err = g.Wait(); err != nil {
+		return nil, err
+	}
+	ok = true
+	return tmpFiles, nil
+}
 
 // genMiddleFiles создает tmp файлы содержащие processingFields. Кол-во строк в новых файлах = tmpFileFieldsCount.
 // Одновременно запускает не более NumCPU*2 горутин.

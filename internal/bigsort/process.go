@@ -9,16 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
-	"sync"
-
-	"golang.org/x/sync/errgroup"
-)
-
-const (
-	linesChunk             = 1000
-	defaultChunkAllocation = 100
 )
 
 // ProcessExistingFile обрабатывает уже существующую csv таблицу inFilePath: parse, sort, split, merge.
@@ -103,16 +94,18 @@ func SortFile(ctx context.Context, cmpFieldNum int, inFilePath, outFilePath stri
 //     в отдельные tmp-файлы (по одному на блок tmpFileFieldsCount строк).
 //  3. Merge-фаза сливает все tmp-файлы в outFilePath (атомарно через rename).
 //
-// Входной файл читается один раз, но tmp-файлы пишутся через Seek по offset'ам
+// Tmp-файлы пишутся через Seek по offset'ам
 //
 // Ограничения:
 //   - Число tmp-файлов = (всего строк) / (linesChunk * tmpFileFieldsCount).
 //     При больших файлах может превысить ulimit — увеличь linesChunk или
 //     используй SortFile.
 func SortFileParallel(parentCtx context.Context, cmpFieldNum int, inFilePath, outFilePath string) error {
-	var mu sync.Mutex
 	tmpFilesDirPath := filepath.Dir(outFilePath)
-	tmpFiles := make([]*os.File, 0, defaultChunkAllocation)
+	tmpFiles, err := splitOnSortedChunks(parentCtx, cmpFieldNum, inFilePath, tmpFilesDirPath)
+	if err != nil {
+		return fmt.Errorf("spliting on chunks: %w", err)
+	}
 	defer func() {
 		for _, f := range tmpFiles {
 			name := f.Name()
@@ -120,75 +113,6 @@ func SortFileParallel(parentCtx context.Context, cmpFieldNum int, inFilePath, ou
 			_ = os.Remove(name)
 		}
 	}()
-
-	// NOTE: анониная функция - ограничиваем видимость переменных
-	err := func() error {
-		// Parse
-		tableFile, err := os.Open(inFilePath)
-		if err != nil {
-			return err
-		}
-		defer func() { _ = tableFile.Close() }()
-		tableReader := bufio.NewReader(tableFile)
-
-		ctx, cancel := context.WithCancel(parentCtx)
-		defer cancel()
-		g, gCtx := errgroup.WithContext(ctx)
-		g.SetLimit(runtime.NumCPU() * 2)
-
-		// Параллельно парсим и разбиваем на временные файлы
-		var tableOffset int64
-		for curChunk := 0; ; curChunk++ {
-			if err := gCtx.Err(); err != nil {
-				cancel()
-				_ = g.Wait()
-				return err
-			}
-			// Chunk parsing
-			tableParseStep, err := parseCSVTable(tableReader, cmpFieldNum, linesChunk, tableOffset)
-			if err != nil && !errors.Is(err, io.EOF) {
-				cancel()
-				_ = g.Wait()
-				return fmt.Errorf("parsing table: %w", err)
-			}
-			tableOffset = tableParseStep.offset
-
-			// Захватываем переменные (go < 1.22)
-			entries := tableParseStep.entries
-			chunk := curChunk
-
-			// Chunk sorting && spliting
-			g.Go(func() error {
-				if err := gCtx.Err(); err != nil {
-					return err
-				}
-				// Chunk sorting
-				slices.SortFunc(entries, func(a, b fieldEntry) int {
-					return cmp.Compare(a.Entry, b.Entry)
-				})
-				// Проверка контекста в genMiddleFiles
-
-				// Chunk spliting
-				tmpChunkFiles, err := genMiddleFiles(gCtx, entries, inFilePath, tmpFilesDirPath)
-				if err != nil {
-					return fmt.Errorf("generating middles for chunk %v: %w", chunk, err)
-				}
-
-				mu.Lock()
-				tmpFiles = append(tmpFiles, tmpChunkFiles...)
-				mu.Unlock()
-				return nil
-			})
-
-			if errors.Is(err, io.EOF) {
-				break
-			}
-		}
-		return g.Wait()
-	}()
-	if err != nil {
-		return err
-	}
 
 	// Merge
 	outFile, err := os.CreateTemp(tmpFilesDirPath, "sorted-*.csv.tmp")
