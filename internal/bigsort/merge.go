@@ -57,7 +57,7 @@ func mergeWithContext(ctx context.Context, inS []*os.File, out io.Writer) error 
 
 		popped := heap.Pop(&h).(*fieldReader)
 
-		if _, err := w.WriteString(popped.line); err != nil {
+		if _, err := w.Write(popped.line); err != nil {
 			return err
 		}
 		if err := w.WriteByte('\n'); err != nil {

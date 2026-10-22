@@ -3,6 +3,7 @@ package bigsort
 import (
 	"errors"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -11,7 +12,7 @@ import (
 type fieldReaderTest struct {
 	name     string
 	input    string
-	wantLine string
+	wantLine []byte
 	checkErr func(error) bool
 }
 
@@ -31,34 +32,34 @@ func TestFieldReader(t *testing.T) {
 
 	tests := []fieldReaderTest{
 		// Пустой ввод и строки без запятой.
-		{"empty", "", "", eof},
-		{"no comma", "1", "1", noComma},
-		{"no comma nl", "1\n", "1", noComma},
-		{"no comma crlf", "1\r\n", "1", noComma},
-		{"no comma double nl", "1\n\n", "1", noComma},
-		{"leading empty line", "\n1\n", "", noComma},
+		{"empty", "", []byte(""), eof},
+		{"no comma", "1", []byte("1"), noComma},
+		{"no comma nl", "1\n", []byte("1"), noComma},
+		{"no comma crlf", "1\r\n", []byte("1"), noComma},
+		{"no comma double nl", "1\n\n", []byte("1"), noComma},
+		{"leading empty line", "\n1\n", []byte(""), noComma},
 
 		// Atoi-ошибки: fr.line уже установлен (до парсинга), поэтому в wantLine — вся строка.
-		{"only comma", ",", ",", atoi},
-		{"empty first field", ",a\n", ",a", atoi},
-		{"non-numeric", "abc,a\n", "abc,a", atoi},
-		{"float", "1.5,a\n", "1.5,a", atoi},
-		{"leading space", " 1,a\n", " 1,a", atoi},
-		{"trailing space", "1 ,a\n", "1 ,a", atoi},
-		{"overflow int", "99999999999999999999,a\n", "99999999999999999999,a", atoi},
+		{"only comma", ",", []byte(","), atoi},
+		{"empty first field", ",a\n", []byte(",a"), atoi},
+		{"non-numeric", "abc,a\n", []byte("abc,a"), atoi},
+		{"float", "1.5,a\n", []byte("1.5,a"), atoi},
+		{"leading space", " 1,a\n", []byte(" 1,a"), atoi},
+		{"trailing space", "1 ,a\n", []byte("1 ,a"), atoi},
+		{"overflow int", "99999999999999999999,a\n", []byte("99999999999999999999,a"), atoi},
 
 		// Валидные.
-		{"valid", "1,a\n", "1,a", nilErr},
-		{"valid negative", "-1,a\n", "-1,a", nilErr},
-		{"valid plus", "+1,a\n", "+1,a", nilErr},
-		{"valid zero", "0,a\n", "0,a", nilErr},
-		{"valid empty rest", "1,\n", "1,", nilErr},
+		{"valid", "1,a\n", []byte("1,a"), nilErr},
+		{"valid negative", "-1,a\n", []byte("-1,a"), nilErr},
+		{"valid plus", "+1,a\n", []byte("+1,a"), nilErr},
+		{"valid zero", "0,a\n", []byte("0,a"), nilErr},
+		{"valid empty rest", "1,\n", []byte("1,"), nilErr},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			r := newFieldReader(strings.NewReader(tc.input))
-			if r.line != tc.wantLine {
+			if !slices.Equal(r.line, tc.wantLine) {
 				t.Fatalf("line: got %q, want %q", r.line, tc.wantLine)
 			}
 			if !tc.checkErr(r.err) {
