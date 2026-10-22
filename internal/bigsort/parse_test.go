@@ -36,12 +36,13 @@ func TestParseCSVTable(t *testing.T) {
 			return pe.Line == wantLine
 		}
 	}
+
 	tests := []parseTest{
 		// --- Пусто / только переводы строк → io.EOF ---
 		{"empty", 0, 1, "", parseStep{[]fieldEntry{}, 1}, eof},
 		{"only newlines", 0, 1, "\n\n", parseStep{[]fieldEntry{}, 3}, eof},
 
-		// --- Невалидный maxP → *parseError ---
+		// --- Невалидный maxP → *parseError (не io.EOF) ---
 		{"maxP=0", 0, 0, "1,a\n", parseStep{}, isParseError(0)},
 		{"maxP=-1", 0, -1, "1,a\n", parseStep{}, isParseError(0)},
 
@@ -52,55 +53,66 @@ func TestParseCSVTable(t *testing.T) {
 		{"cmpF beyond", 2, 1, "1,a\n", parseStep{}, fieldNotFound},
 		{"whitespace line errors", 0, 1, "   \n", parseStep{}, atoi},
 
-		// --- Ровно maxP → nil (без EOF) ---
+		// --- Ровно maxP БАЙТ → nil (без EOF) ---
+		// "1,a"=3 байта, maxP=3: после первой строки parsedBytes=3>=3 → выход
 		{
-			"one line exactly max", 0, 1, "1,a\n",
+			"one line exactly max", 0, 3, "1,a\n",
 			parseStep{[]fieldEntry{{[]byte("1,a"), 1}}, 1},
 			nilErr,
 		},
+		// "1,a"+"2,b"=6 байт, maxP=6
 		{
-			"two lines exactly max", 0, 2, "1,a\n2,b\n",
+			"two lines exactly max", 0, 6, "1,a\n2,b\n",
 			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 2},
+			nilErr,
+		},
+
+		// --- Мягкий лимит: одна строка перескакивает границу ---
+		// maxP=2, первая строка 3 байта → 1 entry, nilErr
+		{
+			"soft limit", 0, 2, "1,a\n2,b\n",
+			parseStep{[]fieldEntry{{[]byte("1,a"), 1}}, 1},
 			nilErr,
 		},
 
 		// --- Файл кончился → io.EOF с данными (+ пустая EOF-итерация) ---
 		{
-			"one line with EOF", 0, 5, "1,a\n",
+			"one line with EOF", 0, 100, "1,a\n",
 			parseStep{[]fieldEntry{{[]byte("1,a"), 1}}, 2},
 			eof,
 		},
 		{
-			"two lines with EOF", 0, 5, "1,a\n2,b\n",
+			"two lines with EOF", 0, 100, "1,a\n2,b\n",
 			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 3},
 			eof,
 		},
 		{
-			"three lines with EOF", 0, 5, "1,a\n2,b\n3,c\n",
+			"three lines with EOF", 0, 100, "1,a\n2,b\n3,c\n",
 			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}, {[]byte("3,c"), 3}}, 4},
 			eof,
 		},
 		{
-			"cmpF=1", 1, 5, "a,10\nb,20\n",
+			"cmpF=1", 1, 100, "a,10\nb,20\n",
 			parseStep{[]fieldEntry{{[]byte("a,10"), 10}, {[]byte("b,20"), 20}}, 3},
 			eof,
 		},
 		{
-			"crlf", 0, 5, "1,a\r\n2,b\r\n",
+			"crlf", 0, 100, "1,a\r\n2,b\r\n",
 			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 3},
 			eof,
 		},
 		{
-			"empty middle line", 0, 5, "1,a\n\n2,b\n",
+			"empty middle line", 0, 100, "1,a\n\n2,b\n",
 			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 4},
 			eof,
 		},
 		{
-			"no trailing nl", 0, 5, "1,a\n2,b",
+			"no trailing nl", 0, 100, "1,a\n2,b",
 			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 2},
 			eof,
 		},
 	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := parseCSVTable(bufio.NewReader(strings.NewReader(tc.input)), tc.cmpF, tc.maxP)

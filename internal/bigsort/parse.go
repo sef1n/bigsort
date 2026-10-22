@@ -10,8 +10,11 @@ import (
 )
 
 const (
-	predictTableLines  = 100
-	tmpFileFieldsCount = 1000
+	// Ожидаемая средняя длинна строки в таблице
+	predictAvgLineLen = 200 // байт
+	// Размер временного файла
+	// TODO: считать в байтах?
+	tmpFileFieldsCount = 1000 // строк
 )
 
 type parseStep struct {
@@ -31,7 +34,6 @@ func (e *parseError) Error() string {
 func (e *parseError) Unwrap() error { return e.Err }
 
 // parseCSVTable читает не более maxParsed непустых строк из br.
-// offset — байтовая позиция начала чтения; возвращаемый offset —
 // начало следующей строки (для продолжения).
 //
 // Возвращает:
@@ -42,21 +44,26 @@ func (e *parseError) Unwrap() error { return e.Err }
 // Пустые строки (после отсечения \r\n) пропускаются; строки из
 // одних пробелов — ошибка парсинга.
 // Требует maxParsed > 0.
-func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsed int) (parseStep, error) {
-	if maxParsed <= 0 {
-		return parseStep{}, &parseError{0, fmt.Errorf("maxParsed must be > 0, got %d", maxParsed)}
+func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep, error) {
+	if maxParsedBytes <= 0 {
+		return parseStep{}, &parseError{0, fmt.Errorf("maxParsedBytes must be > 0, got %d", maxParsedBytes)}
 	}
-	processingFields := make([]fieldEntry, 0, maxParsed)
+	processingFields := make([]fieldEntry, 0, min(maxParsedBytes/predictAvgLineLen, 100_000)) // Защита
 
-	readLines, parsedLines := 0, 0
-	for parsedLines < maxParsed {
+	// Размер успешно распаршенных строк в байтах
+	parsedBytes := 0
+	// Количество прочтанных строк br.ReadBytes (включая строку io.EOF)
+	readLines := 0
+	for parsedBytes < maxParsedBytes {
 		line, readErr := br.ReadBytes('\n')
 		readLines++
 		if readErr != nil && readErr != io.EOF {
 			return parseStep{}, &parseError{readLines, fmt.Errorf("reading: %w", readErr)}
 		}
 
-		line = bytes.TrimRight(line, "\r\n")
+		// Обрезаем только крайние символы
+		line = bytes.TrimSuffix(line, []byte("\n"))
+		line = bytes.TrimSuffix(line, []byte("\r"))
 
 		if len(line) > 0 {
 			nthF, parseErr := nthField(line, cmpFieldNum)
@@ -70,7 +77,7 @@ func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsed int) (parseStep, err
 			}
 
 			processingFields = append(processingFields, fi)
-			parsedLines++
+			parsedBytes += len(line)
 		}
 
 		if readErr == io.EOF {

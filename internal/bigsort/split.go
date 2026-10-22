@@ -16,13 +16,14 @@ import (
 )
 
 const (
-	// TODO: linesChunk -> bytesChunk (flag)
-	linesChunk             = 1000
+	// Soft limit памяти на чанк
+	// Может быть превышен
+	LineChunkBytes         = 32 * (1024 * 1024) // 32 мб
 	defaultChunkAllocation = 100
 )
 
 // splitOnSortedChunks
-// Последовательно читает файл чанками по linesChunk строк.
+// Последовательно читает файл чанками по LineChunkBytes строк.
 // Пул воркеров (NumCPU*2) параллельно сортирует чанки и пишет их
 // в отдельные tmp-файлы (по одному на блок tmpFileFieldsCount строк).
 //
@@ -72,7 +73,7 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 		}
 		// Chunk parsing
 		var tableParseStep parseStep
-		tableParseStep, err = parseCSVTable(tableReader, cmpFieldNum, linesChunk)
+		tableParseStep, err = parseCSVTable(tableReader, cmpFieldNum, LineChunkBytes)
 		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("parsing table: %w", err)
 		}
