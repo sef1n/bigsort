@@ -51,7 +51,7 @@ func SortFile(parentCtx context.Context, cmpFieldNum int, inFilePath, outFilePat
 		}
 	}()
 
-	if err = mergeWithContext(parentCtx, tmpFiles, outFile); err != nil {
+	if err = mergeWithContext(parentCtx, cmpFieldNum, tmpFiles, outFile); err != nil {
 		return fmt.Errorf("merging middles: %w", err)
 	}
 	// Закрываем перед переименованием (избегаем проблем на Windows)

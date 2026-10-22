@@ -9,22 +9,21 @@ import (
 	"strconv"
 )
 
-var errNoComma = errors.New("no comma in line")
-
 type fieldReader struct {
-	cmpField int // Поле, по которому выполняется сортировка
-	line     []byte
-	reader   *bufio.Reader
-	err      error // Ошибка чтения или io.EOF
+	cmpFieldNum int // Номер поля (начиная с 0)
+	cmpField    int // Поле, по которому выполняется сортировка
+	line        []byte
+	reader      *bufio.Reader
+	err         error // Ошибка чтения или io.EOF
 
 	// Возможно имеет смысл
 	// file     io.Reader
 }
 
 // newFieldReader выполняет инициализацию FieldReader, в случае ошибки устанавливает её в FieldReader.err.
-func newFieldReader(f io.Reader) *fieldReader {
+func newFieldReader(f io.Reader, cmpFieldNum int) *fieldReader {
 	scn := bufio.NewReader(f)
-	fr := &fieldReader{reader: scn}
+	fr := &fieldReader{reader: scn, cmpFieldNum: cmpFieldNum}
 	// Scan сам устанавливает ошибки (io.EOF считается ошибкой)
 	_ = fr.scan()
 	return fr
@@ -45,15 +44,14 @@ func (fr *fieldReader) scan() bool {
 
 	fr.line = bytes.TrimRight(fr.line, "\r\n")
 
-	// FIX: неправильный поиск поля
-	idx := bytes.IndexByte(fr.line, ',')
-	if idx < 0 {
-		fr.err = fmt.Errorf("%w: %q", errNoComma, fr.line)
+	bytesField, err := nthField(fr.line, fr.cmpFieldNum)
+	if err != nil {
+		fr.err = fmt.Errorf("parse %q: %w", bytesField, err)
 		return false
 	}
-	v, err := strconv.Atoi(string(fr.line[:idx]))
+	v, err := strconv.Atoi(string(bytesField))
 	if err != nil {
-		fr.err = fmt.Errorf("parse %q: %w", fr.line[:idx], err)
+		fr.err = fmt.Errorf("parse %q: %w", bytesField, err)
 		return false
 	}
 	fr.cmpField = v
