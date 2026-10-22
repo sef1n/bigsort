@@ -7,18 +7,18 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"os"
 	"runtime"
 	"slices"
 	"sync"
 
+	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
 )
 
 const (
 	// Soft limit памяти на чанк
 	// Может быть превышен
-	LineChunkBytes         = 32 * (1024 * 1024) // 32 мб
+	LineChunkBytes         = 16 * (1024 * 1024) // 32 мб
 	defaultChunkAllocation = 100
 )
 
@@ -29,9 +29,11 @@ const (
 //
 // Tmp-файлы пишутся через Seek по offset'ам
 // При больших файлах может превысить ulimit
-func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath, tmpFilesDirPath string) ([]*os.File, error) {
+func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath, tmpFilesDirPath string, fsys afero.Fs) ([]afero.File, error) {
+	// TODO: переиспользование
+	// sync.Pool && arena
 	// Parse
-	tableFile, err := os.Open(inFilePath)
+	tableFile, err := fsys.Open(inFilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +42,7 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 
 	var (
 		mu       sync.Mutex
-		tmpFiles = make([]*os.File, 0, defaultChunkAllocation)
+		tmpFiles = make([]afero.File, 0, defaultChunkAllocation)
 	)
 
 	ctx, cancel := context.WithCancel(parentCtx)
@@ -59,7 +61,7 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 		for _, f := range tmpFiles {
 			name := f.Name()
 			_ = f.Close()
-			_ = os.Remove(name)
+			_ = fsys.Remove(name)
 		}
 	}()
 
@@ -84,7 +86,7 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 
 		// Chunk sorting && spliting
 		g.Go(func() error {
-			tmpChunkFiles, err := processChunk(gCtx, chunk, entries, inFilePath, tmpFilesDirPath)
+			tmpChunkFiles, err := processChunk(gCtx, chunk, entries, inFilePath, tmpFilesDirPath, fsys)
 			if err != nil {
 				return err
 			}
@@ -106,7 +108,7 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 }
 
 // processChunk выполняет сортировку и разбиение чанков на tmp файлы
-func processChunk(parentCtx context.Context, chunk int, entries []fieldEntry, inFilePath, tmpFilesDirPath string) ([]*os.File, error) {
+func processChunk(parentCtx context.Context, chunk int, entries []fieldEntry, inFilePath, tmpFilesDirPath string, fsys afero.Fs) ([]afero.File, error) {
 	if err := parentCtx.Err(); err != nil {
 		return nil, err
 	}
@@ -118,7 +120,7 @@ func processChunk(parentCtx context.Context, chunk int, entries []fieldEntry, in
 	// Проверка контекста в genMiddleFiles
 
 	// Chunk spliting
-	tmpChunkFiles, err := genMiddleFiles(parentCtx, entries, inFilePath, tmpFilesDirPath)
+	tmpChunkFiles, err := genMiddleFiles(parentCtx, entries, inFilePath, tmpFilesDirPath, fsys)
 	if err != nil {
 		return nil, fmt.Errorf("generating middles for chunk %v: %w", chunk, err)
 	}
@@ -129,8 +131,8 @@ func processChunk(parentCtx context.Context, chunk int, entries []fieldEntry, in
 // genMiddleFiles создает tmp файлы содержащие processingFields. Кол-во строк в новых файлах = tmpFileFieldsCount.
 // Одновременно запускает не более NumCPU*2 горутин.
 // Возвращает слайс файлов, закрывает и удаляет их при ошибке.
-func genMiddleFiles(parentCtx context.Context, processingEntries []fieldEntry, source, creationPath string) ([]*os.File, error) {
-	tmpFs := make([]*os.File, (len(processingEntries)+tmpFileFieldsCount-1)/tmpFileFieldsCount)
+func genMiddleFiles(parentCtx context.Context, processingEntries []fieldEntry, source, creationPath string, fsys afero.Fs) ([]afero.File, error) {
+	tmpFs := make([]afero.File, (len(processingEntries)+tmpFileFieldsCount-1)/tmpFileFieldsCount)
 
 	g, ctx := errgroup.WithContext(parentCtx)
 	g.SetLimit(runtime.NumCPU() * 2)
@@ -142,7 +144,7 @@ func genMiddleFiles(parentCtx context.Context, processingEntries []fieldEntry, s
 			if err := ctx.Err(); err != nil {
 				return err
 			}
-			f, err := createTMP(ctx, processingEntries[start:end], source, creationPath)
+			f, err := createTMP(ctx, processingEntries[start:end], source, creationPath, fsys)
 			if err != nil {
 				return fmt.Errorf("creating block [%d:%d]: %w", start, end, err)
 			}
@@ -158,7 +160,7 @@ func genMiddleFiles(parentCtx context.Context, processingEntries []fieldEntry, s
 				continue
 			}
 			_ = f.Close()
-			_ = os.Remove(f.Name())
+			_ = fsys.Remove(f.Name())
 		}
 		return nil, err
 	}
@@ -166,15 +168,15 @@ func genMiddleFiles(parentCtx context.Context, processingEntries []fieldEntry, s
 }
 
 // createTMP создает tmp файл, заполняет его строками processingFields.
-func createTMP(ctx context.Context, processingEntries []fieldEntry, sourcePath, creationPath string) (tmpF *os.File, err error) {
-	tmpF, err = os.CreateTemp(creationPath, "")
+func createTMP(ctx context.Context, processingEntries []fieldEntry, sourcePath, creationPath string, fsys afero.Fs) (tmpF afero.File, err error) {
+	tmpF, err = afero.TempFile(fsys, creationPath, "")
 	if err != nil {
 		return
 	}
 
 	defer func() {
 		if err != nil {
-			_ = os.Remove(tmpF.Name())
+			_ = fsys.Remove(tmpF.Name())
 			_ = tmpF.Close()
 			tmpF = nil
 		}

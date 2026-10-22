@@ -9,6 +9,8 @@ import (
 	"syscall"
 
 	"bigFiles/internal/bigsort"
+
+	"github.com/spf13/afero"
 )
 
 func main() {
@@ -23,6 +25,8 @@ func run(args []string) error {
 		return fmt.Errorf("parsing flags: %w", err)
 	}
 
+	fsys := afero.NewOsFs()
+
 	parentCtx := context.Background()
 	if config.ctxTimeout != 0 {
 		var cancel context.CancelFunc
@@ -33,5 +37,5 @@ func run(args []string) error {
 	ctx, cancel := signal.NotifyContext(parentCtx, os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	return bigsort.SortFile(ctx, config.cmpField, config.inFile, config.outFile)
+	return bigsort.SortFile(ctx, config.cmpField, config.inFile, config.outFile, fsys)
 }

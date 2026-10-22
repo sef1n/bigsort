@@ -3,8 +3,9 @@ package bigsort
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
+
+	"github.com/spf13/afero"
 )
 
 // SortFileParallel сортирует CSV файл, распараллелив parse+sort+split по чанкам.
@@ -21,9 +22,9 @@ import (
 //   - Число tmp-файлов = (всего строк) / (linesChunk * tmpFileFieldsCount).
 //     При больших файлах может превысить ulimit — увеличь linesChunk или
 //     используй SortFile.
-func SortFile(parentCtx context.Context, cmpFieldNum int, inFilePath, outFilePath string) error {
+func SortFile(parentCtx context.Context, cmpFieldNum int, inFilePath, outFilePath string, fsys afero.Fs) error {
 	tmpFilesDirPath := filepath.Dir(outFilePath)
-	tmpFiles, err := splitOnSortedChunks(parentCtx, cmpFieldNum, inFilePath, tmpFilesDirPath)
+	tmpFiles, err := splitOnSortedChunks(parentCtx, cmpFieldNum, inFilePath, tmpFilesDirPath, fsys)
 	if err != nil {
 		return fmt.Errorf("spliting on chunks: %w", err)
 	}
@@ -31,12 +32,12 @@ func SortFile(parentCtx context.Context, cmpFieldNum int, inFilePath, outFilePat
 		for _, f := range tmpFiles {
 			name := f.Name()
 			_ = f.Close()
-			_ = os.Remove(name)
+			_ = fsys.Remove(name)
 		}
 	}()
 
 	// Merge
-	outFile, err := os.CreateTemp(tmpFilesDirPath, "sorted-*.csv.tmp")
+	outFile, err := afero.TempFile(fsys, tmpFilesDirPath, "sorted-*.csv.tmp")
 	if err != nil {
 		return fmt.Errorf("creating tmp result: %w", err)
 	}
@@ -47,7 +48,7 @@ func SortFile(parentCtx context.Context, cmpFieldNum int, inFilePath, outFilePat
 	defer func() {
 		_ = outFile.Close() // если вышли до явного Close
 		if !keepTmpFile {
-			_ = os.Remove(outNameTmp)
+			_ = fsys.Remove(outNameTmp)
 		}
 	}()
 
@@ -62,7 +63,7 @@ func SortFile(parentCtx context.Context, cmpFieldNum int, inFilePath, outFilePat
 	}
 	// В случае ошибки переименовывания файл не удаляется,
 	// возвращаемая ошибка содержит имя файла с результатом
-	if err = os.Rename(outNameTmp, outFilePath); err != nil {
+	if err = fsys.Rename(outNameTmp, outFilePath); err != nil {
 		keepTmpFile = true
 		return fmt.Errorf("rename %s -> %s: %w; result saved to %s", outNameTmp, outFilePath, err, outNameTmp)
 	}

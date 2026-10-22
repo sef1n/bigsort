@@ -5,7 +5,8 @@ import (
 	"container/heap"
 	"context"
 	"io"
-	"os"
+
+	"github.com/spf13/afero"
 )
 
 type readersHeap []*fieldReader
@@ -31,7 +32,7 @@ func (h *readersHeap) Pop() any {
 // mergeWithContext выполняет merge-слияние файлов, пишет результат в out.
 // При ошибке не выполняет Flush().
 // TODO: принимает []io.Reader?
-func mergeWithContext(ctx context.Context, cmpFieldNum int, inS []*os.File, out io.Writer) error {
+func mergeWithContext(ctx context.Context, cmpFieldNum int, inS []afero.File, out io.Writer) error {
 	h := make(readersHeap, 0, len(inS))
 
 	for _, f := range inS {
