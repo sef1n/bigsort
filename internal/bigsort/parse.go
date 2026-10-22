@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"unsafe"
 )
 
 const (
 	// Ожидаемая средняя длинна строки в таблице
-	predictAvgLineLen = 200 // байт
+	predictAvgLineLen = 100 // байт
 	// Размер временного файла
 	// TODO: считать в байтах?
 	tmpFileFieldsCount = 1000 // строк
@@ -48,7 +49,7 @@ func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep
 	if maxParsedBytes <= 0 {
 		return parseStep{}, &parseError{0, fmt.Errorf("maxParsedBytes must be > 0, got %d", maxParsedBytes)}
 	}
-	processingFields := make([]fieldEntry, 0, min(maxParsedBytes/predictAvgLineLen, 100_000)) // Защита
+	processingFields := make([]fieldEntry, 0, min(maxParsedBytes/predictAvgLineLen, 10_000)) // Защита
 
 	// Размер успешно распаршенных строк в байтах
 	parsedBytes := 0
@@ -71,7 +72,7 @@ func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep
 				return parseStep{}, &parseError{readLines, fmt.Errorf("parsing: %w", parseErr)}
 			}
 
-			fi, parseErr := newFieldEntry(line, string(nthF))
+			fi, parseErr := newFieldEntry(line, nthF)
 			if parseErr != nil {
 				return parseStep{}, &parseError{readLines, fmt.Errorf("saving: %w", parseErr)}
 			}
@@ -112,8 +113,15 @@ type fieldEntry struct {
 	field int
 }
 
-func newFieldEntry(line []byte, field string) (fieldEntry, error) {
-	v, err := strconv.Atoi(field)
+// bytesToString — zero-copy []byte → string для read-only операций.
+// Результат НЕ должен переживать b; используется только для
+// strconv.Atoi, который читает и не сохраняет строку
+func bytesToString(b []byte) string {
+	return unsafe.String(unsafe.SliceData(b), len(b))
+}
+
+func newFieldEntry(line []byte, field []byte) (fieldEntry, error) {
+	v, err := strconv.Atoi(bytesToString(field))
 	if err != nil {
 		return fieldEntry{}, err
 	}

@@ -18,7 +18,7 @@ import (
 const (
 	// Soft limit памяти на чанк
 	// Может быть превышен
-	LineChunkBytes         = 16 * (1024 * 1024) // 32 мб
+	LineChunkBytes         = 16 * (1024 * 1024) // 16 мб
 	defaultChunkAllocation = 100
 )
 
