@@ -64,11 +64,17 @@ func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep
 		line, readErr := br.ReadSlice('\n')
 		readLines++
 		if readErr != nil && readErr != io.EOF {
-			// NOTE: или при любой ошибке fallback
-			line, readErr = br.ReadBytes('\n')
+			buf := make([]byte, len(line), len(line)+256)
+			copy(buf, line)
+			line = buf
+
+			rest, readErr := br.ReadBytes('\n')
 			if readErr != nil && readErr != io.EOF {
+				fmt.Println("FALLBACK ERR")
 				return parseStep{}, &parseError{readLines, fmt.Errorf("reading (fell back to ReadBytes): %w", readErr)}
 			}
+
+			line = append(line, rest...)
 		}
 
 		// Обрезаем только крайние символы
@@ -142,6 +148,7 @@ func bytesToString(b []byte) string {
 func newFieldEntry(line []byte, field []byte) (fieldEntry, error) {
 	v, err := strconv.Atoi(bytesToString(field))
 	if err != nil {
+		fmt.Println(field)
 		return fieldEntry{}, err
 	}
 	return fieldEntry{line, v}, nil
