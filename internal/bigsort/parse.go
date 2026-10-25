@@ -14,14 +14,11 @@ const (
 	// Ожидаемая средняя длинна строки в таблице
 	// TODO: оценивать по первой строке файла?
 	predictAvgLineLen = 100 // байт
-	// Размер временного файла
-	// TODO: считать в байтах?
-	tmpFileFieldsCount = 1000 // строк
 )
 
 type parseStep struct {
 	entries   []fieldEntry
-	readLines int // число итераций ReadBytes, включая пустую EOF-итерацию — для нумерации ошибок
+	readlines int // число итераций ReadBytes, включая пустую EOF-итерацию — для нумерации ошибок
 }
 
 type parseError struct {
@@ -109,7 +106,9 @@ var errFieldNotFound error = errors.New("field not found")
 
 // nthField разбивает строку на поля по разделителю ',', возвращает n поле
 func nthField(line []byte, n int) ([]byte, error) {
-	// FIX: n < 0
+	if n < 0 {
+		return nil, fmt.Errorf("field num must be >= 0, got %v", n)
+	}
 	start := 0
 	for i := 0; i < n; i++ {
 		idx := bytes.IndexByte(line[start:], ',')
