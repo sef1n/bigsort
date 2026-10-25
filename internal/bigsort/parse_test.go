@@ -155,6 +155,24 @@ func TestParseCSVTable(t *testing.T) {
 	}
 }
 
+func TestParseCSVTable_FallbackLongLine(t *testing.T) {
+	input := strings.Repeat("a", 5000) + ",1\n" + "b,2\n" // > 4096 buffer
+
+	got, err := parseCSVTable(bufio.NewReader(strings.NewReader(input)), 1, 100_000)
+	if err != nil && !errors.Is(err, io.EOF) {
+		t.Fatalf("err: %v", err)
+	}
+	if len(got.entries) != 2 {
+		t.Fatalf("entries: got %d, want 2", len(got.entries))
+	}
+	if got.entries[0].field != 1 {
+		t.Errorf("entries[0].field: got %d, want 1", got.entries[0].field)
+	}
+	if got.entries[1].field != 2 {
+		t.Errorf("entries[1].field: got %d, want 2", got.entries[1].field)
+	}
+}
+
 // truncate возвращает превью []byte для лога: не более n байт.
 func truncate(b []byte, n int) string {
 	if len(b) <= n {
