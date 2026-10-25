@@ -18,12 +18,6 @@ func BenchmarkSplitOnSortedChunks(B *testing.B) {
 	genLetters := []byte("abcd")
 
 	mockFs := afero.NewMemMapFs()
-	delF := func(f afero.File) {
-		name := f.Name()
-		_ = f.Close()
-		_ = mockFs.Remove(name)
-	}
-
 	for _, linesN := range []int{100, 1000, 10000} {
 		// NOTE: удаляется после завершения B.Run
 		inputF, err := mockFs.Create(strconv.Itoa(linesN))
@@ -47,18 +41,18 @@ func BenchmarkSplitOnSortedChunks(B *testing.B) {
 			B.ResetTimer()
 
 			for i := 0; i < B.N; i++ {
-				tmps, err := splitOnSortedChunks(context.Background(), 0, inputF.Name(), ".", mockFs)
+				tmps, err := splitOnSortedChunks(context.Background(), 0, inputF.Name(), ".", LineChunkBytes, mockFs)
 				if err != nil && !errors.Is(err, io.EOF) {
 					B.Fatal(err)
 				}
 
 				B.StopTimer()
 				for _, f := range tmps {
-					delF(f)
+					delF(mockFs, f)
 				}
 				B.StartTimer()
 			}
 		})
-		delF(inputF)
+		delF(mockFs, inputF)
 	}
 }

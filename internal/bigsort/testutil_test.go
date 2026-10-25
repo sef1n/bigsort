@@ -1,8 +1,11 @@
 package bigsort
 
 import (
+	"bufio"
 	"bytes"
 	"math/rand"
+
+	"github.com/spf13/afero"
 )
 
 func utilGenLine(r *rand.Rand, iN, lN int, letters []byte) []byte {
@@ -29,4 +32,26 @@ func nDigitString(r *rand.Rand, n int) string {
 		b[i] = byte('0' + r.Intn(10)) // '0'..'9'
 	}
 	return string(b)
+}
+
+func fillFile(f afero.File, input []byte) error {
+	w := bufio.NewWriter(f)
+	if _, err := w.Write(input); err != nil {
+		return err
+	}
+	return w.Flush()
+}
+
+func cmpWithBoolErr(err error, isNeeded bool) bool {
+	var bErr bool
+	if err != nil {
+		bErr = true
+	}
+	return bErr == isNeeded
+}
+
+func delF(fs afero.Fs, f afero.File) {
+	name := f.Name()
+	_ = f.Close()
+	_ = fs.Remove(name)
 }
