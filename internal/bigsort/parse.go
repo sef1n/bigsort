@@ -63,29 +63,37 @@ func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep
 	for parsedBytes < maxParsedBytes {
 		line, readErr := br.ReadSlice('\n')
 		readLines++
-		if readErr != nil && readErr != io.EOF {
-			buf := make([]byte, len(line), len(line)+256)
-			copy(buf, line)
-			line = buf
+		// Переменная для подсчета позиции на арене после fallback
+		fullLineLen := len(line)
 
-			rest, readErr := br.ReadBytes('\n')
+		// NOTE: fallback только для длинных строк
+		if errors.Is(readErr, bufio.ErrBufferFull) {
+			// Получена незавершенная строка,
+			// чтобы не выделять память, сразу добавляем в арену
+			linesArena = append(linesArena, line...)
+
+			// Если дочитали до EOF, ошибка видна циклу
+			// новый указатель - остаток строки
+			line, readErr = br.ReadBytes('\n')
 			if readErr != nil && readErr != io.EOF {
-				fmt.Println("FALLBACK ERR")
 				return parseStep{}, &parseError{readLines, fmt.Errorf("reading (fell back to ReadBytes): %w", readErr)}
 			}
-
-			line = append(line, rest...)
+			fullLineLen += len(line)
 		}
 
+		linesArena = append(linesArena, line...)
+		line = linesArena[arenaOffset : arenaOffset+fullLineLen]
+		// arenaOffset меняем после trim
+
 		// Обрезаем только крайние символы
+		// Указатель на line меняется, в арене продолжает храниться обрезанное
 		line = bytes.TrimSuffix(line, []byte("\n"))
 		line = bytes.TrimSuffix(line, []byte("\r"))
 
+		// Обновляем гранцы, исключаем обрезанное
+		linesArena = linesArena[:arenaOffset+len(line)]
+		arenaOffset += len(line)
 		if len(line) > 0 {
-			linesArena = append(linesArena, line...)
-			// Меняем указатель
-			line = linesArena[arenaOffset : arenaOffset+len(line)]
-			arenaOffset += len(line)
 
 			nthF, parseErr := nthField(line, cmpFieldNum)
 			if parseErr != nil {
@@ -108,7 +116,7 @@ func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep
 	return parseStep{processingFields, readLines}, nil
 }
 
-var errFieldNotFound error = errors.New("field not found")
+var errFieldNotFound = errors.New("field not found")
 
 // nthField разбивает строку на поля по разделителю ',', возвращает n поле
 func nthField(line []byte, n int) ([]byte, error) {
@@ -148,7 +156,6 @@ func bytesToString(b []byte) string {
 func newFieldEntry(line []byte, field []byte) (fieldEntry, error) {
 	v, err := strconv.Atoi(bytesToString(field))
 	if err != nil {
-		fmt.Println(field)
 		return fieldEntry{}, err
 	}
 	return fieldEntry{line, v}, nil
