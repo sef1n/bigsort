@@ -17,6 +17,7 @@ type cfg struct {
 }
 
 func parseFlags(args []string) (*cfg, error) {
+	// TODO: флаг проверки ulimit
 	fs := pflag.NewFlagSet("sorter", pflag.ContinueOnError)
 
 	var c cfg

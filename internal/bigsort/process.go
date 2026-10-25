@@ -8,6 +8,10 @@ import (
 	"github.com/spf13/afero"
 )
 
+// Soft limit памяти на чанк
+// Может быть превышен
+const LineChunkBytes = 16 * (1024 * 1024) // 16 мб
+
 // SortFileParallel сортирует CSV файл, распараллелив parse+sort+split по чанкам.
 //
 // Пайплайн:
@@ -23,8 +27,9 @@ import (
 //     При больших файлах может превысить ulimit — увеличь linesChunk или
 //     используй SortFile.
 func SortFile(parentCtx context.Context, cmpFieldNum int, inFilePath, outFilePath string, fsys afero.Fs) error {
+	// TODO: счетчик открытых файлов, их слияние при приближению к лимиту.
 	tmpFilesDirPath := filepath.Dir(outFilePath)
-	tmpFiles, err := splitOnSortedChunks(parentCtx, cmpFieldNum, inFilePath, tmpFilesDirPath, fsys)
+	tmpFiles, err := splitOnSortedChunks(parentCtx, cmpFieldNum, inFilePath, tmpFilesDirPath, LineChunkBytes, fsys)
 	if err != nil {
 		return fmt.Errorf("spliting on chunks: %w", err)
 	}

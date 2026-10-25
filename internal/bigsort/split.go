@@ -24,13 +24,11 @@ import (
 // Tmp-файлы пишутся через Seek по offset'ам
 // При больших файлах может превысить ulimit
 func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath, tmpFilesDirPath string, bytesPerChunk int, fsys afero.Fs) ([]afero.File, error) {
-	// TODO: распаралелить чтение таблицы через offset?
-	// TODO: переиспользование памяти с sync.Pool
+	// TODO: распараллелить чтение таблицы через offset?
 	if bytesPerChunk <= 0 {
 		return nil, fmt.Errorf("chunk size must be > 0, got %v", bytesPerChunk)
 	}
 
-	// Parse
 	tableFile, err := fsys.Open(inFilePath)
 	if err != nil {
 		return nil, err
@@ -38,22 +36,9 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 	defer func() { _ = tableFile.Close() }()
 	tableReader := bufio.NewReader(tableFile)
 
-	tableStat, err := tableFile.Stat()
+	estimatedChunks, err := estimateChunks(tableFile, bytesPerChunk)
 	if err != nil {
-		return nil, fmt.Errorf("stat input: %w", err)
-	}
-	// size будет использоваться при распаралеливании чтения таблицы
-	tableSizeBytes := tableStat.Size()
-
-	estimatedChunks := uint64((tableSizeBytes + int64(bytesPerChunk) - 1) / int64(bytesPerChunk))
-	// Проверка лимитов ос на открытые файлы (+ запас)
-
-	lim, err := ulimit.Get()
-	if err != nil {
-		return nil, fmt.Errorf("os ulimit: %w", err)
-	}
-	if estimatedChunks > lim-5 {
-		return nil, fmt.Errorf("input too large: %d chunks (max %d). Increase bytesPerChunk", estimatedChunks, lim)
+		return nil, fmt.Errorf("chunk estimating: %w", err)
 	}
 
 	var (
@@ -121,6 +106,25 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 	}
 	ok = true
 	return middles, nil
+}
+
+func estimateChunks(toChunksFile afero.File, bytesPerChunk int) (uint64, error) {
+	tableStat, err := toChunksFile.Stat()
+	if err != nil {
+		return 0, fmt.Errorf("stat input: %w", err)
+	}
+	tableSizeBytes := tableStat.Size()
+	estimatedChunks := uint64((tableSizeBytes + int64(bytesPerChunk) - 1) / int64(bytesPerChunk))
+
+	// Проверка лимитов ос на открытые файлы (+ запас)
+	lim, err := ulimit.Get()
+	if err != nil {
+		return 0, fmt.Errorf("os ulimit: %w", err)
+	}
+	if estimatedChunks > lim-5 {
+		return 0, fmt.Errorf("input too large: %d chunks (os max %d). Increase bytesPerChunk", estimatedChunks, lim)
+	}
+	return estimatedChunks, nil
 }
 
 // processChunk выполняет сортировку и разбиение чанков на tmp файлы
