@@ -66,8 +66,12 @@ func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep
 		// Переменная для подсчета позиции на арене после fallback
 		fullLineLen := len(line)
 
-		// NOTE: fallback только для длинных строк
-		if errors.Is(readErr, bufio.ErrBufferFull) {
+		if readErr != nil && readErr != io.EOF {
+			// NOTE: fallback только для длинных строк
+			if !errors.Is(readErr, bufio.ErrBufferFull) {
+				return parseStep{}, &parseError{readLines, fmt.Errorf("reading: %w", readErr)}
+			}
+
 			// Получена незавершенная строка,
 			// чтобы не выделять память, сразу добавляем в арену
 			linesArena = append(linesArena, line...)
