@@ -4,27 +4,26 @@ import (
 	"fmt"
 	"time"
 
+	"bigFiles/internal/bigsort"
+
 	"github.com/spf13/pflag"
 )
 
 const defaultCsvName = "table.csv"
 
 type cfg struct {
-	inFile     string
-	outFile    string
+	bigsort.SortConfig
 	ctxTimeout time.Duration
-	cmpField   int
 }
 
 func parseFlags(args []string) (*cfg, error) {
-	// TODO: флаг проверки ulimit
 	fs := pflag.NewFlagSet("sorter", pflag.ContinueOnError)
 
 	var c cfg
-	fs.StringVarP(&c.inFile, "input", "i", defaultCsvName, "Path to source (input) file")
-	fs.StringVarP(&c.outFile, "output", "o", defaultCsvName, "Path to output file")
+	fs.StringVarP(&c.InPath, "input", "i", defaultCsvName, "Path to source (input) file")
+	fs.StringVarP(&c.OutPath, "output", "o", defaultCsvName, "Path to output file")
 	fs.DurationVarP(&c.ctxTimeout, "timeout", "t", 0, "Processing timeout")
-	fs.IntVarP(&c.cmpField, "field", "f", 0, "Comparing field")
+	fs.IntVarP(&c.CmpFieldNum, "field", "f", 0, "Comparing field")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -33,9 +32,5 @@ func parseFlags(args []string) (*cfg, error) {
 	if c.ctxTimeout < 0 {
 		return nil, fmt.Errorf("timeout must be >= 0, got %v", c.ctxTimeout)
 	}
-	if c.cmpField < 0 {
-		return nil, fmt.Errorf("comparing field must be >= 0, got %d", c.cmpField)
-	}
-
 	return &c, nil
 }

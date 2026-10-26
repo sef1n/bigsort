@@ -35,13 +35,25 @@ func BenchmarkSplitOnSortedChunks(B *testing.B) {
 			fSize += len(line)
 		}
 
+		estimatedChunks, err := estimateChunks(inputF, defaultBytesPerChunk)
+		if err != nil {
+			B.Fatal(err)
+		}
+		cfg := chunkPlan{
+			inFile:          inputF,
+			tmpDir:          ".",
+			cmpFieldNum:     0,
+			bytesPerChunk:   defaultBytesPerChunk,
+			estimatedChunks: estimatedChunks,
+		}
+
 		B.Run(fmt.Sprintf("lines=%d", linesN), func(B *testing.B) {
 			B.SetBytes(int64(fSize))
 			B.ReportAllocs()
 			B.ResetTimer()
 
 			for i := 0; i < B.N; i++ {
-				tmps, err := splitOnSortedChunks(context.Background(), 0, inputF.Name(), ".", LineChunkBytes, mockFs)
+				tmps, err := splitOnSortedChunks(context.Background(), cfg, mockFs)
 				if err != nil && !errors.Is(err, io.EOF) {
 					B.Fatal(err)
 				}

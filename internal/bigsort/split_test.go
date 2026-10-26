@@ -120,15 +120,27 @@ func TestSplitOnSortedChunks(T *testing.T) {
 	mockFs := afero.NewMemMapFs()
 	for _, test := range tests {
 		T.Run(test.name, func(T *testing.T) {
-			inF, err := mockFs.Create("input")
+			inputF, err := mockFs.Create("input")
 			if err != nil {
 				T.Fatal(err)
 			}
-			if err := fillFile(inF, test.input); err != nil {
+			if err := fillFile(inputF, test.input); err != nil {
 				T.Fatal(err)
 			}
 
-			tmps, err := splitOnSortedChunks(context.Background(), test.cmpField, inF.Name(), ".", test.chunk, mockFs)
+			estimatedChunks, err := estimateChunks(inputF, defaultBytesPerChunk)
+			if err != nil {
+				T.Fatal(err)
+			}
+			cfg := chunkPlan{
+				inFile:          inputF,
+				tmpDir:          ".",
+				cmpFieldNum:     test.cmpField,
+				bytesPerChunk:   test.chunk,
+				estimatedChunks: estimatedChunks,
+			}
+
+			tmps, err := splitOnSortedChunks(context.Background(), cfg, mockFs)
 			if !cmpWithBoolErr(err, test.expErr) {
 				T.Errorf("unexpected err: got %v", err)
 			}
@@ -141,7 +153,7 @@ func TestSplitOnSortedChunks(T *testing.T) {
 				for _, tF := range tmps {
 					delF(mockFs, tF)
 				}
-				delF(mockFs, inF)
+				delF(mockFs, inputF)
 			})
 
 			type fieldReaderCounted struct {

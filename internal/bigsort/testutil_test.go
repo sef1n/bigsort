@@ -3,6 +3,7 @@ package bigsort
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"math/rand"
 
 	"github.com/spf13/afero"
@@ -39,7 +40,11 @@ func fillFile(f afero.File, input []byte) error {
 	if _, err := w.Write(input); err != nil {
 		return err
 	}
-	return w.Flush()
+	if err := w.Flush(); err != nil {
+		return err
+	}
+	_, err := f.Seek(0, io.SeekStart)
+	return err
 }
 
 func cmpWithBoolErr(err error, isNeeded bool) bool {

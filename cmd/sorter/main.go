@@ -37,5 +37,5 @@ func run(args []string) error {
 	ctx, cancel := signal.NotifyContext(parentCtx, os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
-	return bigsort.SortFile(ctx, config.cmpField, config.inFile, config.outFile, fsys)
+	return bigsort.SortFile(ctx, config.SortConfig, fsys)
 }

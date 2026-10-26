@@ -16,34 +16,34 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// chunkPlan — параметры одного прохода split
+type chunkPlan struct {
+	inFile io.Reader
+	// Директория для временных файлов
+	tmpDir      string
+	cmpFieldNum int
+
+	// Soft limit памяти на чанк.
+	// Может быть превышен
+	bytesPerChunk int
+
+	// Оценочное кол-во чанков в inFile
+	estimatedChunks uint64
+}
+
 // splitOnSortedChunks
 // Последовательно читает файл чанками по bytesPerChunk строк.
 // Пул воркеров (NumCPU*2) параллельно сортирует чанки и пишет их
-// в отдельные tmp-файлы (по одному на блок tmpFileFieldsCount строк).
+// в отдельные tmp-файлы
 //
-// Tmp-файлы пишутся через Seek по offset'ам
 // При больших файлах может превысить ulimit
-func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath, tmpFilesDirPath string, bytesPerChunk int, fsys afero.Fs) ([]afero.File, error) {
+func splitOnSortedChunks(parentCtx context.Context, cfg chunkPlan, fsys afero.Fs) ([]afero.File, error) {
 	// TODO: распараллелить чтение таблицы через offset?
-	if bytesPerChunk <= 0 {
-		return nil, fmt.Errorf("chunk size must be > 0, got %v", bytesPerChunk)
-	}
-
-	tableFile, err := fsys.Open(inFilePath)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = tableFile.Close() }()
-	tableReader := bufio.NewReader(tableFile)
-
-	estimatedChunks, err := estimateChunks(tableFile, bytesPerChunk)
-	if err != nil {
-		return nil, fmt.Errorf("chunk estimating: %w", err)
-	}
+	tableReader := bufio.NewReader(cfg.inFile)
 
 	var (
 		mu      sync.Mutex
-		middles = make([]afero.File, 0, estimatedChunks)
+		middles = make([]afero.File, 0, cfg.estimatedChunks)
 	)
 
 	ctx, cancel := context.WithCancel(parentCtx)
@@ -75,19 +75,17 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 			return nil, gCtx.Err() // fallback
 		}
 		// Chunk parsing
-		var tableParseStep parseStep
-		tableParseStep, err = parseCSVTable(tableReader, cmpFieldNum, bytesPerChunk)
+		tableParseStep, err := parseCSVTable(tableReader, cfg.cmpFieldNum, cfg.bytesPerChunk)
 		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("parsing table: %w", err)
 		}
-
 		// Захватываем переменные (go < 1.22)
 		entries := tableParseStep.entries
 		chunk := curChunk
 
 		// Chunk sorting && spliting
 		g.Go(func() error {
-			middleFile, err := processChunk(gCtx, chunk, entries, tmpFilesDirPath, fsys)
+			middleFile, err := processChunk(gCtx, chunk, entries, cfg.tmpDir, fsys)
 			if err != nil {
 				return err
 			}
@@ -101,13 +99,14 @@ func splitOnSortedChunks(parentCtx context.Context, cmpFieldNum int, inFilePath,
 			break
 		}
 	}
-	if err = g.Wait(); err != nil {
+	if err := g.Wait(); err != nil {
 		return nil, err
 	}
 	ok = true
 	return middles, nil
 }
 
+// estimateChunks оценивает количество чанков в переданном файле основываясь на ulimit и file size
 func estimateChunks(toChunksFile afero.File, bytesPerChunk int) (uint64, error) {
 	tableStat, err := toChunksFile.Stat()
 	if err != nil {
@@ -127,7 +126,7 @@ func estimateChunks(toChunksFile afero.File, bytesPerChunk int) (uint64, error) 
 	return estimatedChunks, nil
 }
 
-// processChunk выполняет сортировку и разбиение чанков на tmp файлы
+// processChunk выполняет сортировку и записывает отсортированный чанк во временный файл
 func processChunk(parentCtx context.Context, chunk int, entries []fieldEntry, tmpFilesDirPath string, fsys afero.Fs) (afero.File, error) {
 	if err := parentCtx.Err(); err != nil {
 		return nil, err
@@ -149,7 +148,7 @@ func processChunk(parentCtx context.Context, chunk int, entries []fieldEntry, tm
 	return middleFile, nil
 }
 
-// createMiddleFile создает tmp файл, заполняет его строками processingFields. В случае ошибки закрывает и удаляет файл
+// createMiddleFile создает tmp файл, заполняет его строками processingEntries. В случае ошибки закрывает и удаляет файл
 func createMiddleFile(ctx context.Context, processingEntries []fieldEntry, creationPath string, fsys afero.Fs) (tmpF afero.File, err error) {
 	tmpF, err = afero.TempFile(fsys, creationPath, "")
 	if err != nil {
