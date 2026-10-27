@@ -15,232 +15,162 @@ type test struct {
 	cmpField int
 	input    []byte
 	chunk    int
-	// Тест проверяет корректность логики парсинга
-	// У входящих в SplitOnSortedChunks есть свои тесты, поэтому
-	// Достаточно факта наличия ошибки
-	expErr bool
+	expErr   bool
 }
 
-// WARN: этот тест НЕ поддерживает тестирование сплита таблиц,
-// у которых чанки начинаются на ОДИНАКОВЫЕ строки:
-// порядок создания временных файлов недетерминирован,
-// чтобы протестировать разбиение на чанки, необходимо реконструировать
-// порядок файлов - данный тест для упрорядочивания ориентируется на
-// совпадение первых строк на предположительном месте начала чанка.
-func TestSplitOnSortedChunks(T *testing.T) {
+// WARN: этот тест не поддерживает чанки, начинающиеся с ОДИНАКОВЫХ строк:
+// порядок tmp-файлов недетерминирован, восстановление идёт по значению
+// первой строки. Для таких данных нужен отдельный тест с доступом к
+// внутреннему состоянию splitOnSortedChunks (пока нет).
+// Тестовые данные — с уникальными первыми строками.
+func TestSplitOnSortedChunks(t *testing.T) {
 	tests := []test{
 		// ---- без ошибок ----
-		{
-			name:     "empty",
-			cmpField: 0,
-			input:    []byte{},
-			chunk:    100,
-			expErr:   false,
-		},
-		{
-			name:     "single line fits",
-			cmpField: 0,
-			input:    []byte("1,a\n"),
-			chunk:    100,
-			expErr:   false,
-		},
-		{
-			name:     "multiple lines one chunk",
-			cmpField: 0,
-			input:    []byte("1,a\n2,b\n3,c\n"),
-			chunk:    100,
-			expErr:   false,
-		},
-		{
-			name:     "exact chunk boundary",
-			cmpField: 0,
-			input:    []byte("12,ab\n34,cd\n"), // 5 + 5 = 10
-			chunk:    10,
-			expErr:   false,
-		},
-		{
-			name:     "two chunks overshoot",
-			cmpField: 0,
-			input:    []byte("1,a\n2,b\n3,c\n4,d\n"), // каждый 3 байта
-			chunk:    5,                              // чанки по 6 байт (2 строки)
-			expErr:   false,
-		},
-		{
-			name:     "last chunk smaller",
-			cmpField: 0,
-			input:    []byte("1,aaaa\n2,bb\n"), // 6 + 4
-			chunk:    8,
-			expErr:   false,
-		},
-		{
-			name:     "cmpField=1",
-			cmpField: 1,
-			input:    []byte("1,10\n2,20\n3,30\n"),
-			chunk:    100,
-			expErr:   false,
-		},
+		{name: "empty", cmpField: 0, input: []byte{}, chunk: 100},
+		{name: "single line fits", cmpField: 0, input: []byte("1,a\n"), chunk: 100},
+		{name: "multiple lines one chunk", cmpField: 0, input: []byte("1,a\n2,b\n3,c\n"), chunk: 100},
+		{name: "exact chunk boundary", cmpField: 0, input: []byte("12,ab\n34,cd\n"), chunk: 10},
+		{name: "two chunks overshoot", cmpField: 0, input: []byte("1,a\n2,b\n3,c\n4,d\n"), chunk: 5},
+		{name: "last chunk smaller", cmpField: 0, input: []byte("1,aaaa\n2,bb\n"), chunk: 8},
+		{name: "cmpField=1", cmpField: 1, input: []byte("1,10\n2,20\n3,30\n"), chunk: 100},
 		// ---- с ошибками ----
-		{
-			name:     "zero chunk",
-			cmpField: 0,
-			input:    []byte("1,10\n"),
-			chunk:    0,
-			expErr:   true, // parseError: maxParsedBytes must be > 0
-		},
-		{
-			name:     "negative chunk",
-			cmpField: 0,
-			input:    []byte("1,10\n"),
-			chunk:    -1,
-			expErr:   true,
-		},
-		{
-			name:     "cmpField out of range",
-			cmpField: 3,
-			input:    []byte("1,10\n"),
-			chunk:    100,
-			expErr:   true, // errFieldNotFound
-		},
-		{
-			name:     "non-numeric field",
-			cmpField: 0,
-			input:    []byte("x,10\n"),
-			chunk:    100,
-			expErr:   true, // strconv.Atoi
-		},
-		{
-			name:     "negative cmpField",
-			cmpField: -1,
-			input:    []byte("1,10\n"),
-			chunk:    100,
-			expErr:   true,
-		},
+		{name: "zero chunk", cmpField: 0, input: []byte("1,10\n"), chunk: 0, expErr: true},
+		{name: "negative chunk", cmpField: 0, input: []byte("1,10\n"), chunk: -1, expErr: true},
+		{name: "cmpField out of range", cmpField: 3, input: []byte("1,10\n"), chunk: 100, expErr: true},
+		{name: "non-numeric field", cmpField: 0, input: []byte("x,10\n"), chunk: 100, expErr: true},
+		{name: "negative cmpField", cmpField: -1, input: []byte("1,10\n"), chunk: 100, expErr: true},
 	}
 
-	mockFs := afero.NewMemMapFs()
-	for _, test := range tests {
-		T.Run(test.name, func(T *testing.T) {
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			mockFs := afero.NewMemMapFs()
+
 			inputF, err := mockFs.Create("input")
 			if err != nil {
-				T.Fatal(err)
+				t.Fatal(err)
 			}
-			if err := fillFile(inputF, test.input); err != nil {
-				T.Fatal(err)
+			t.Cleanup(func() { delF(mockFs, inputF) })
+
+			if err := fillFile(inputF, tt.input); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := inputF.Seek(0, io.SeekStart); err != nil {
+				t.Fatal(err)
 			}
 
 			estimatedChunks, err := estimateChunks(inputF, defaultBytesPerChunk)
 			if err != nil {
-				T.Fatal(err)
+				t.Fatal(err)
 			}
+
 			cfg := chunkPlan{
 				inFile:          inputF,
 				tmpDir:          ".",
-				cmpFieldNum:     test.cmpField,
-				bytesPerChunk:   test.chunk,
+				cmpFieldNum:     tt.cmpField,
+				bytesPerChunk:   tt.chunk,
 				estimatedChunks: estimatedChunks,
 			}
 
 			tmps, err := splitOnSortedChunks(context.Background(), cfg, mockFs)
-			if !cmpWithBoolErr(err, test.expErr) {
-				T.Errorf("unexpected err: got %v", err)
+			if !cmpWithBoolErr(err, tt.expErr) {
+				t.Errorf("unexpected err: got %v", err)
 			}
-			// При ошибке данные файлов невалидны
 			if err != nil {
 				return
 			}
+			for _, tF := range tmps {
+				tF := tF
+				t.Cleanup(func() { delF(mockFs, tF) })
+			}
 
-			T.Cleanup(func() {
-				for _, tF := range tmps {
-					delF(mockFs, tF)
+			// ---- Pre-read: newFieldReader уже прочитал первую строку чанка ----
+			type chunkState struct {
+				fr    *fieldReader
+				first []byte // копия: fr.line перезаписывается read()
+				cntr  int    // байт в чанке (без \r\n)
+				eof   bool   // пустой чанк (создан на EOF-итерации)
+			}
+			cs := make([]chunkState, 0, len(tmps))
+			for _, tF := range tmps {
+				fr, ferr := newFieldReader(tF, tt.cmpField)
+				if ferr != nil && ferr != io.EOF {
+					t.Fatalf("newFieldReader: %v", ferr)
 				}
-				delF(mockFs, inputF)
+				if len(fr.line) == 0 {
+					cs = append(cs, chunkState{fr: fr, eof: true})
+					continue
+				}
+				first := append([]byte(nil), fr.line...)
+				cs = append(cs, chunkState{fr: fr, first: first, cntr: len(first)})
+			}
+
+			// Порядок чанков недетерминирован (см. WARN) — восстанавливаем по значению.
+			slices.SortFunc(cs, func(a, b chunkState) int {
+				return bytes.Compare(a.first, b.first)
 			})
 
-			type fieldReaderCounted struct {
-				cntr int
-				*fieldReader
+			// ---- Input reader: init прочитал первую строку ----
+			ir, err := newFieldReader(bytes.NewReader(tt.input), tt.cmpField)
+			if err != nil && err != io.EOF {
+				t.Fatal(err)
 			}
-			// TODO: scanWithCntr()
 
-			readers := make([]*fieldReaderCounted, 0, len(tmps))
-			for _, tF := range tmps {
-				r := newFieldReader(tF, test.cmpField)
-				if err := r.err; err != nil && err != io.EOF {
-					T.Fatalf("reader creation: %v", err)
+			for i := range cs {
+				c := &cs[i]
+				if c.eof {
+					continue // пустой чанк — не двигает ir
 				}
-				readers = append(readers, &fieldReaderCounted{fieldReader: r, cntr: len(r.line)})
-			}
 
-			ir := fieldReaderCounted{
-				fieldReader: newFieldReader(bytes.NewReader(test.input), test.cmpField),
-			}
-			ir.cntr = len(ir.line)
-
-			for range readers {
-				found := false
-
-				for _, fr := range readers {
-					if !bytes.Equal(fr.line, ir.line) {
-						continue
-					}
-					found = true
-
-					for {
-						if !fr.scan() {
-							if ferr := fr.err; ferr != nil && ferr != io.EOF {
-								T.Fatalf("tmp reader: %v", ferr)
-							}
-							break
-						}
-
-						fr.line = bytes.TrimSuffix(fr.line, []byte("\n"))
-						fr.line = bytes.TrimSuffix(fr.line, []byte("\r"))
-
-						fr.cntr += len(fr.line)
-
-						_ = ir.scan()
-						if ierr := ir.err; ierr != nil && ierr != io.EOF {
-							T.Fatalf("input reader: %v", ierr)
-						}
-						ir.line = bytes.TrimSuffix(ir.line, []byte("\n"))
-						ir.line = bytes.TrimSuffix(ir.line, []byte("\r"))
-						ir.cntr += len(ir.line)
-
-						// Сравниваем строки до обработки EOF,
-						// иначе последняя строка пропускается.
-						if !slices.Equal(fr.line, ir.line) {
-							T.Errorf("non equal lines: fr.line=%q, ir.line=%q", fr.line, ir.line)
-						}
-
-						// ferr == nil, но input уже кончился — рассинхронизация.
-						if fr.err != ir.err {
-							T.Errorf("diff errs: ferr=%v, ierr=%v", fr.err, ir.err)
-							break
-						}
-					}
-					// Обновляем ir.line
-					_ = ir.scan()
-
-					// Размер проверяем ПОСЛЕ цикла. Последний чанк — тот,
-					// после которого ir оказался на EOF. Его размер не ограничен снизу.
-					if fr.cntr < test.chunk && ir.err != io.EOF {
-						T.Errorf("chunk too small: got %d, want >= %d", fr.cntr, test.chunk)
-					}
-
-					// Обрабатываем один чанк за итерацию
-					break
+				// Первая строка чанка должна совпасть с текущей позицией ir.
+				if !bytes.Equal(c.first, ir.line) {
+					t.Fatalf("chunk %d: first mismatch: fr=%q ir=%q", i, c.first, ir.line)
 				}
-				if !found {
-					tmpsStarts := make([]string, 0, len(readers))
-					for _, fr := range readers {
-						tmpsStarts = append(tmpsStarts, string(fr.line))
+
+				// Дренаж: каждая следующая строка чанка == следующая строка input.
+				for {
+					ferr := c.fr.read()
+					if ferr == io.EOF {
+						break
 					}
-					T.Errorf("no file with identical start found (input line=\"%s\", tmps starts=\"%+v\")",
-						ir.line, tmpsStarts)
+					if ferr != nil {
+						t.Fatalf("chunk %d: %v", i, ferr)
+					}
+					c.cntr += len(c.fr.line)
+
+					ierr := ir.read()
+					if ierr != nil && ierr != io.EOF {
+						t.Fatalf("chunk %d: input: %v", i, ierr)
+					}
+					if ierr == io.EOF {
+						t.Fatalf("chunk %d: input ended before chunk", i)
+					}
+					if !bytes.Equal(c.fr.line, ir.line) {
+						t.Errorf("chunk %d: %q != %q", i, c.fr.line, ir.line)
+					}
+				}
+
+				// Последний физический чанк может быть < bytesPerChunk (хвост input).
+				// Эвристика: см. WARN — считаем, что данные уникальны и порядок по
+				// значению == порядок по позиции, тогда последний в cs — последний.
+				if i < len(cs)-1 && c.cntr < tt.chunk {
+					t.Errorf("chunk %d too small: %d < %d", i, c.cntr, tt.chunk)
+				}
+
+				// Переход к первой строке следующего чанка.
+				// На последнем чанке вернёт io.EOF — норм.
+				if err := ir.read(); err != nil && err != io.EOF {
+					t.Fatal(err)
 				}
 			}
-			if ir.err != io.EOF {
-				T.Errorf("input not fully consumed: remaining=%q", ir.line)
+
+			// ---- Input должен быть полностью исчерпан ----
+			if err := ir.read(); err != io.EOF {
+				if err == nil {
+					t.Errorf("input not fully consumed: %q", ir.line)
+				} else {
+					t.Fatal(err)
+				}
 			}
 		})
 	}

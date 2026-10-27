@@ -9,6 +9,13 @@ import (
 	"github.com/spf13/afero"
 )
 
+// trimLineCopy возвращает trimmed-копию: []byte переиспользуется.
+func trimLineCopy(b []byte) []byte {
+	b = bytes.TrimSuffix(b, []byte("\n"))
+	b = bytes.TrimSuffix(b, []byte("\r"))
+	return append([]byte(nil), b...)
+}
+
 func utilGenLine(r *rand.Rand, iN, lN int, letters []byte) []byte {
 	var b bytes.Buffer
 	// или b := make([]byte, 0, iN+1+lN+1)

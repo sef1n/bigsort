@@ -71,7 +71,6 @@ func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep
 			if !errors.Is(readErr, bufio.ErrBufferFull) {
 				return parseStep{}, &parseError{readLines, fmt.Errorf("reading: %w", readErr)}
 			}
-
 			// Получена незавершенная строка,
 			// чтобы не выделять память, сразу добавляем в арену
 			linesArena = append(linesArena, line...)

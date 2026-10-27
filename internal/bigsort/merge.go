@@ -36,16 +36,15 @@ func mergeWithContext(ctx context.Context, cmpFieldNum int, inS []afero.File, ou
 	h := make(readersHeap, 0, len(inS))
 
 	for _, f := range inS {
-		r := newFieldReader(f, cmpFieldNum)
-		if r.err != nil {
-			if r.err == io.EOF {
-				continue
-			}
-			return r.err
+		r, err := newFieldReader(f, cmpFieldNum)
+		if err != nil && err != io.EOF {
+			return err
+		}
+		if len(r.line) == 0 {
+			continue
 		}
 		h = append(h, r)
 	}
-
 	heap.Init(&h)
 
 	w := bufio.NewWriterSize(out, 64*1024)
@@ -57,18 +56,20 @@ func mergeWithContext(ctx context.Context, cmpFieldNum int, inS []afero.File, ou
 		}
 
 		popped := heap.Pop(&h).(*fieldReader)
+		popped.line = append(popped.line, byte('\n'))
 
+		// Пишем сразу с \n
 		if _, err := w.Write(popped.line); err != nil {
 			return err
 		}
-		if err := w.WriteByte('\n'); err != nil {
-			return err
-		}
 
-		if popped.scan() {
+		if err := popped.read(); err != nil {
+			if err != io.EOF {
+				return err
+			}
+		} else {
+			// Если нет ошибки, сразу добавляем
 			heap.Push(&h, popped)
-		} else if popped.err != io.EOF {
-			return popped.err
 		}
 	}
 	return w.Flush()
