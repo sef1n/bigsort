@@ -19,11 +19,13 @@ type cfg struct {
 func parseFlags(args []string) (*cfg, error) {
 	fs := pflag.NewFlagSet("sorter", pflag.ContinueOnError)
 
-	var c cfg
-	fs.StringVarP(&c.InPath, "input", "i", defaultCsvName, "Path to source (input) file")
-	fs.StringVarP(&c.OutPath, "output", "o", defaultCsvName, "Path to output file")
+	c := cfg{SortConfig: bigsort.DefaultSortConfig()}
+
+	fs.StringVarP(&c.SortConfig.InPath, "input", "i", defaultCsvName, "Path to source (input) file")
+	fs.StringVarP(&c.SortConfig.OutPath, "output", "o", defaultCsvName, "Path to output file")
+	fs.IntVarP(&c.SortConfig.CmpFieldNum, "field", "f", 0, "Comparing field")
+
 	fs.DurationVarP(&c.ctxTimeout, "timeout", "t", 0, "Processing timeout")
-	fs.IntVarP(&c.CmpFieldNum, "field", "f", 0, "Comparing field")
 
 	if err := fs.Parse(args); err != nil {
 		return nil, err
