@@ -2,32 +2,17 @@ package ltree
 
 import "fmt"
 
-// Leaf лист дерева
-type leaf []int
-
-// node узел с победителем и его индексом на нижнем уровне
-type node struct {
-	val     *leaf
-	leafInd int
-}
-
-// LoserTree дерево
-type LoserTree struct {
-	levels [][]*node
-	winner node
-}
-
-func Init(leafs []*leaf) *LoserTree {
+func Init(leafs []*Leaf) (*LoserTree, node) {
 	// leafs completion to len%2=0
 	if leafs == nil || len(leafs) == 0 {
-		return nil
+		return nil, node{}
 	}
 	lt := LoserTree{levels: createTopLevel(leafs)}
 	holdTournament(&lt)
-	return &lt
+	return &lt, lt.winner
 }
 
-func createTopLevel(leafs []*leaf) [][]*node {
+func createTopLevel(leafs []*Leaf) [][]*node {
 	lev := make([][]*node, 1, len(leafs))
 	for i, v := range leafs {
 		lev[0] = append(lev[0], &node{val: v, leafInd: i})
@@ -45,12 +30,6 @@ func complete(lev *[]*node) {
 		*lev = append(*lev, &node{val: nil, leafInd: len(*lev)})
 	}
 }
-
-// // TODO: interface
-// type Competitor interface {
-// 	// i может быть nil.
-// 	CompareWith(i Competitor) (less Competitor, bigger Competitor)
-// }
 
 // holdTournament зполняет уровни дерева, устанавливает победителя
 // Ожидает, что len(ult.levels) == 1
@@ -115,6 +94,6 @@ func battle(i, j *node) (winner *node, loser *node) {
 	return i, j
 }
 
-func Less(j, i leaf) bool {
+func Less(j, i Leaf) bool {
 	return j[0] < i[0]
 }
