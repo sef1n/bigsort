@@ -9,9 +9,9 @@ import (
 
 func (n node) String() string {
 	if n.val == nil {
-		return fmt.Sprintf("(<nil>,%v)", n.leafInd)
+		return fmt.Sprintf("(<nil>,%v)", n.ind)
 	}
-	return fmt.Sprintf("(%v,%v)", *n.val, n.leafInd)
+	return fmt.Sprintf("(%v,%v)", n.val, n.ind)
 }
 
 func (t LoserTree) String() string {

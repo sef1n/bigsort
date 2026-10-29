@@ -1,22 +1,46 @@
 package ltree
 
-func Init(leafs []*Leaf) (*LoserTree, node) {
-	// leafs completion to len%2=0
+import "fmt"
+
+func Init(leafs [][]int) (*LoserTree, node) {
 	if leafs == nil || len(leafs) == 0 {
 		return nil, node{}
 	}
+
 	lt := LoserTree{levels: createTopLevel(leafs)}
 	holdTournament(&lt)
+
 	return &lt, lt.winner
 }
 
-func createTopLevel(leafs []*Leaf) [][]*node {
-	lev := make([][]*node, 1, len(leafs))
-	for i, v := range leafs {
-		lev[0] = append(lev[0], &node{val: v, leafInd: i})
+func createTopLevel(leafs [][]int) [][]*node {
+	// Вычисляем длину начального уровня
+	// вместе с +inf значениями
+	extendedLeafs := 1
+	for extendedLeafs < len(leafs) {
+		extendedLeafs <<= 1
 	}
-	complete(&lev[0])
-	return lev
+
+	lvls := make([][]*node, 0, extendedLeafs/2)
+	lvls = append(lvls, make([]*node, 0, extendedLeafs))
+
+	// Создаем значащие ноды
+	for i, v := range leafs {
+		// WARN: не валидируется длина слайса, упадет в battle
+		// TODO: валидация
+		lvls[0] = append(lvls[0], &node{val: v, ind: i})
+	}
+
+	// Дополняем уровень +inf значениями
+	// WARN: Не указывем индекс.
+	for len(lvls[0]) < extendedLeafs {
+		lvls[0] = append(lvls[0], &node{val: nil})
+	}
+
+	// DEBUG
+	fmt.Printf("[DEBUG] LEVEL 0: %+v\n", lvls[0])
+
+	return lvls
 }
 
 func complete(lev *[]*node) {
@@ -25,7 +49,7 @@ func complete(lev *[]*node) {
 		n <<= 1
 	}
 	for len(*lev) < n {
-		*lev = append(*lev, &node{val: nil, leafInd: len(*lev)})
+		*lev = append(*lev, &node{val: nil, ind: len(*lev)})
 	}
 }
 
@@ -33,14 +57,14 @@ func complete(lev *[]*node) {
 // Ожидает, что len(ult.levels) == 1
 func holdTournament(lt *LoserTree) {
 	rounders := lt.levels[0]
-	winners := make([]*node, 0, len(lt.levels)/2)
+	winners := make([]*node, 0, len(lt.levels[0])/2)
 
 	// depth - куда пишутся проигравшие
-	for depth := 1; len(rounders) != 1; depth++ {
+	for depth := 1; len(rounders) > 1; depth++ {
 		// fmt.Printf("Tournament round start, rounders: ")
 		// printPointersSlice(rounders)
 
-		lt.levels = append(lt.levels, make([]*node, 0, len(winners)/2))
+		lt.levels = append(lt.levels, make([]*node, 0, len(rounders)/2))
 		round(rounders, &winners, &lt.levels[depth])
 
 		// NOTE: можно использовать один слайс для чтения && записи
@@ -63,6 +87,7 @@ func holdTournament(lt *LoserTree) {
 func round(rouneders []*node, winners *[]*node, losers *[]*node) {
 	for i, j := 0, 1; j < len(rouneders); i, j = i+2, j+2 {
 		winner, loser := battle(rouneders[i], rouneders[j])
+
 		// fmt.Printf("Winner: %v; Loser: %v\n", *winner, *loser)
 
 		*winners = append(*winners, winner)
@@ -74,24 +99,20 @@ func round(rouneders []*node, winners *[]*node, losers *[]*node) {
 // Принимает nil за +infinity
 // WARN: не использует интерфейс
 func battle(i, j *node) (winner *node, loser *node) {
-	if i.val == nil || *i.val == nil {
+	if i.val == nil {
 		winner = j
 		loser = i
 		return
 	}
-	if j.val == nil || *j.val == nil {
+	if j.val == nil {
 		winner = i
 		loser = j
 		return
 	}
 
-	if Less(*j.val, *i.val) {
+	if j.val[0] < i.val[0] {
 		return j, i
 	}
 	// stable sort
 	return i, j
-}
-
-func Less(j, i Leaf) bool {
-	return j[0] < i[0]
 }

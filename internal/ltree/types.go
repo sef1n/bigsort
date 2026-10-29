@@ -12,14 +12,10 @@ package ltree
 // 	CompareWith(i Luser) (less Luser, bigger Luser)
 // }
 
-// Leaf лист дерева.
-// Хранит текущее и последующие значения.
-type Leaf []int
-
 // node узел с значением и его индексом на нижнем уровне
 type node struct {
-	val     *Leaf
-	leafInd int
+	val []int
+	ind int
 }
 
 // LoserTree дерево
@@ -35,10 +31,9 @@ func (n *node) Next() {
 		return
 	}
 	// Слайс хранит cur + next
-	if len(*n.val) < 2 {
-		*n.val = nil
+	if len(n.val) < 2 {
 		n.val = nil
 		return
 	}
-	*n.val = (*n.val)[1:]
+	n.val = n.val[1:]
 }

@@ -1,21 +1,17 @@
 package ltree
 
-// Pop обновляет значение победителя,
-// если новое значение больше прошлого,
-// обновляет дерево. В ином случае дерево
-// остается прежним, новое значение возвращается
-func Pop(t *LoserTree) (node, bool) {
-	winner := t.levels[0][t.winner.leafInd]
-	if winner.val == nil {
-		// Бесконечность в корне - значения исчерпаны
-		return node{}, false
-	}
+// Pop обновляет значение победителя
+// и путь от победителя до корня.
+// Если значение победителя невалидно,
+// возвращает ok = false
+func Pop(t *LoserTree) (winner *node, ok bool) {
+	winner = t.levels[0][t.winner.ind]
 	// Устанавливаем новое значение
 	winner.Next()
 
 	var loser *node
 	for i := 1; i < len(t.levels); i++ {
-		oppInd := winner.leafInd >> i
+		oppInd := winner.ind >> i
 		// fmt.Printf("Opp ind [%v][%v]\n", i, oppInd)
 		opponent := t.levels[i][oppInd]
 		// fmt.Printf("Participant %v; opponent %v\n", winner, opponent)
@@ -32,5 +28,9 @@ func Pop(t *LoserTree) (node, bool) {
 		// fmt.Println()
 	}
 	t.winner = *winner
-	return *winner, true
+
+	if t.winner.val == nil {
+		return nil, false
+	}
+	return winner, true
 }
