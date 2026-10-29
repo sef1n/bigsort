@@ -1,6 +1,8 @@
 package ltree
 
-import "fmt"
+// NOTE: листья, чьи значения == nil || len == 0,
+// не участвуют в "турнире" - они приравниваются к
+// nil (inf value).
 
 func Init(leafs [][]int) (*LoserTree, node) {
 	if leafs == nil || len(leafs) == 0 {
@@ -26,8 +28,12 @@ func createTopLevel(leafs [][]int) [][]*node {
 
 	// Создаем значащие ноды
 	for i, v := range leafs {
-		// WARN: не валидируется длина слайса, упадет в battle
-		// TODO: валидация
+		// Валидация листьев
+		// Пропускаем несравниваемые,
+		// их место займут node{val: nil}
+		if v == nil || len(v) == 0 {
+			continue
+		}
 		lvls[0] = append(lvls[0], &node{val: v, ind: i})
 	}
 
@@ -36,9 +42,6 @@ func createTopLevel(leafs [][]int) [][]*node {
 	for len(lvls[0]) < extendedLeafs {
 		lvls[0] = append(lvls[0], &node{val: nil})
 	}
-
-	// DEBUG
-	fmt.Printf("[DEBUG] LEVEL 0: %+v\n", lvls[0])
 
 	return lvls
 }
