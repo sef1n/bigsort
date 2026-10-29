@@ -12,11 +12,11 @@ package ltree
 // 	CompareWith(i Luser) (less Luser, bigger Luser)
 // }
 
-// Leaf лист дерева
-// dev тип
+// Leaf лист дерева.
+// Хранит текущее и последующие значения.
 type Leaf []int
 
-// node узел с победителем и его индексом на нижнем уровне
+// node узел с значением и его индексом на нижнем уровне
 type node struct {
 	val     *Leaf
 	leafInd int
@@ -28,12 +28,17 @@ type LoserTree struct {
 	winner node
 }
 
-func (l *Leaf) Next() (int, bool) {
-	// cur + next
-	if len(*l) < 2 {
-		return 0, false
+// Next возвращает следующее значение в слайсе.
+// Если данные закончились, устанавливает слайс = nil.
+func (n *node) Next() {
+	if n.val == nil {
+		return
 	}
-	v := (*l)[1]
-	*l = (*l)[1:]
-	return v, true
+	// Слайс хранит cur + next
+	if len(*n.val) < 2 {
+		*n.val = nil
+		n.val = nil
+		return
+	}
+	*n.val = (*n.val)[1:]
 }

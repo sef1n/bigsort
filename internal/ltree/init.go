@@ -1,7 +1,5 @@
 package ltree
 
-import "fmt"
-
 func Init(leafs []*Leaf) (*LoserTree, node) {
 	// leafs completion to len%2=0
 	if leafs == nil || len(leafs) == 0 {
@@ -39,8 +37,8 @@ func holdTournament(lt *LoserTree) {
 
 	// depth - куда пишутся проигравшие
 	for depth := 1; len(rounders) != 1; depth++ {
-		fmt.Printf("Tournament round start, rounders: ")
-		printPointersSlice(rounders)
+		// fmt.Printf("Tournament round start, rounders: ")
+		// printPointersSlice(rounders)
 
 		lt.levels = append(lt.levels, make([]*node, 0, len(winners)/2))
 		round(rounders, &winners, &lt.levels[depth])
@@ -51,11 +49,11 @@ func holdTournament(lt *LoserTree) {
 		rounders = winners
 		winners = winners[:0]
 
-		fmt.Printf("Tournament round end, winners: ")
-		printPointersSlice(rounders)
-		fmt.Println()
+		// fmt.Printf("Tournament round end, winners: ")
+		// printPointersSlice(rounders)
+		// fmt.Println()
 	}
-	fmt.Printf("Tournament end, winner: %v\n", rounders)
+	// fmt.Printf("Tournament end, winner: %v\n", rounders)
 	lt.winner = *rounders[0]
 	return
 }
@@ -65,7 +63,7 @@ func holdTournament(lt *LoserTree) {
 func round(rouneders []*node, winners *[]*node, losers *[]*node) {
 	for i, j := 0, 1; j < len(rouneders); i, j = i+2, j+2 {
 		winner, loser := battle(rouneders[i], rouneders[j])
-		fmt.Printf("Winner: %v; Loser: %v\n", *winner, *loser)
+		// fmt.Printf("Winner: %v; Loser: %v\n", *winner, *loser)
 
 		*winners = append(*winners, winner)
 		*losers = append(*losers, loser)
@@ -76,12 +74,12 @@ func round(rouneders []*node, winners *[]*node, losers *[]*node) {
 // Принимает nil за +infinity
 // WARN: не использует интерфейс
 func battle(i, j *node) (winner *node, loser *node) {
-	if i.val == nil {
+	if i.val == nil || *i.val == nil {
 		winner = j
 		loser = i
 		return
 	}
-	if j.val == nil {
+	if j.val == nil || *j.val == nil {
 		winner = i
 		loser = j
 		return
