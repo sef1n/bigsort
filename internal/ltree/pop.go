@@ -5,6 +5,11 @@ package ltree
 // Если значение победителя невалидно,
 // возвращает ok = false
 func Pop(t *LoserTree) (winner *node, ok bool) {
+	// По контракту слайс t.levels != nil, len(t.levels) != 0
+	if t == nil {
+		return
+	}
+
 	winner = t.levels[0][t.winner.ind]
 	// Устанавливаем новое значение
 	winner.Next()
