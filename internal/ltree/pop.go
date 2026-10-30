@@ -32,7 +32,7 @@ func Pop(t *LoserTree) (winner *node, ok bool) {
 		// fmt.Printf("Afterround tree %+v\n", t)
 		// fmt.Println()
 	}
-	t.winner = *winner
+	t.winner = winner
 
 	if t.winner.val == nil {
 		return nil, false

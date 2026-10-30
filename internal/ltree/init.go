@@ -4,9 +4,9 @@ package ltree
 // не участвуют в "турнире" - они приравниваются к
 // nil (inf value).
 
-func Init(leafs [][]int) (*LoserTree, node) {
+func Init(leafs [][]int) (*LoserTree, *node) {
 	if leafs == nil || len(leafs) == 0 {
-		return nil, node{}
+		return nil, nil
 	}
 
 	lt := LoserTree{levels: createTopLevel(leafs)}
@@ -81,7 +81,7 @@ func holdTournament(lt *LoserTree) {
 		// fmt.Println()
 	}
 	// fmt.Printf("Tournament end, winner: %v\n", rounders)
-	lt.winner = *rounders[0]
+	lt.winner = rounders[0]
 	return
 }
 

@@ -21,7 +21,7 @@ type node struct {
 // LoserTree дерево
 type LoserTree struct {
 	levels [][]*node
-	winner node
+	winner *node
 }
 
 // Next возвращает следующее значение в слайсе.

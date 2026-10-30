@@ -27,7 +27,7 @@ func TestInit(t *testing.T) {
 						{val: nil, ind: 0},
 					},
 				},
-				winner: node{val: nil, ind: 0},
+				winner: &node{val: nil, ind: 0},
 			},
 		},
 		{
@@ -40,7 +40,7 @@ func TestInit(t *testing.T) {
 					{{val: nil, ind: 0}, {val: nil, ind: 0}},
 					{{val: nil, ind: 0}},
 				},
-				winner: node{val: nil, ind: 0},
+				winner: &node{val: nil, ind: 0},
 			},
 		},
 
@@ -53,7 +53,7 @@ func TestInit(t *testing.T) {
 						{val: nil, ind: 0},
 					},
 				},
-				winner: node{val: nil, ind: 0},
+				winner: &node{val: nil, ind: 0},
 			},
 		},
 		{
@@ -66,7 +66,7 @@ func TestInit(t *testing.T) {
 					{{val: nil, ind: 0}, {val: nil, ind: 0}},
 					{{val: nil, ind: 0}},
 				},
-				winner: node{val: nil, ind: 0},
+				winner: &node{val: nil, ind: 0},
 			},
 		},
 
@@ -79,7 +79,7 @@ func TestInit(t *testing.T) {
 				levels: [][]*node{
 					{{val: []int{42}, ind: 0}},
 				},
-				winner: node{val: []int{42}, ind: 0},
+				winner: &node{val: []int{42}, ind: 0},
 			},
 		},
 
@@ -92,7 +92,7 @@ func TestInit(t *testing.T) {
 					{{val: []int{1}, ind: 0}, {val: []int{2}, ind: 1}},
 					{{val: []int{2}, ind: 1}},
 				},
-				winner: node{val: []int{1}, ind: 0},
+				winner: &node{val: []int{1}, ind: 0},
 			},
 		},
 
@@ -105,7 +105,7 @@ func TestInit(t *testing.T) {
 					{{val: []int{2}, ind: 0}, {val: []int{1}, ind: 1}},
 					{{val: []int{2}, ind: 0}},
 				},
-				winner: node{val: []int{1}, ind: 1},
+				winner: &node{val: []int{1}, ind: 1},
 			},
 		},
 
@@ -131,7 +131,7 @@ func TestInit(t *testing.T) {
 						{val: []int{2}, ind: 1},
 					},
 				},
-				winner: node{val: []int{1}, ind: 2},
+				winner: &node{val: []int{1}, ind: 2},
 			},
 		},
 
@@ -157,7 +157,7 @@ func TestInit(t *testing.T) {
 						{val: []int{1}, ind: 2},
 					},
 				},
-				winner: node{val: []int{1}, ind: 0},
+				winner: &node{val: []int{1}, ind: 0},
 			},
 		},
 
@@ -181,7 +181,7 @@ func TestInit(t *testing.T) {
 						{val: []int{3}, ind: 1},
 					},
 				},
-				winner: node{val: []int{1}, ind: 3},
+				winner: &node{val: []int{1}, ind: 3},
 			},
 		},
 
@@ -218,7 +218,7 @@ func TestInit(t *testing.T) {
 						{val: []int{5, 5}, ind: 4},
 					},
 				},
-				winner: node{val: []int{1, 1}, ind: 0},
+				winner: &node{val: []int{1, 1}, ind: 0},
 			},
 		},
 
@@ -243,7 +243,7 @@ func TestInit(t *testing.T) {
 						{val: []int{5}, ind: 2},
 					},
 				},
-				winner: node{val: []int{5}, ind: 0},
+				winner: &node{val: []int{5}, ind: 0},
 			},
 		},
 
@@ -267,16 +267,24 @@ func TestInit(t *testing.T) {
 						{val: []int{5, 30}, ind: 2},
 					},
 				},
-				winner: node{val: []int{5, 10}, ind: 0},
+				winner: &node{val: []int{5, 10}, ind: 0},
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, _ := Init(test.inSeq)
+			got, w := Init(test.inSeq)
 			if !reflect.DeepEqual(got, test.want) {
 				t.Errorf("Init() tree mismatch\n got: %+v\nwant: %+v", got, test.want)
+			}
+
+			var wantWinner *node
+			if test.want != nil {
+				wantWinner = test.want.winner
+			}
+			if !reflect.DeepEqual(w, wantWinner) {
+				t.Errorf("Init() winner mismatch\n got: %+v\nwant: %+v", w, wantWinner)
 			}
 		})
 	}
