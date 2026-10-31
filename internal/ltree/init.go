@@ -35,7 +35,7 @@ func createTopLevel(leafs [][]int) []*node {
 		if v == nil || len(v) == 0 {
 			continue
 		}
-		lvl = append(lvl, &node{val: v, ind: i})
+		lvl = append(lvl, &node{val: v[1:], cur: v[0], ind: i})
 	}
 
 	// Дополняем уровень +inf значениями
@@ -103,7 +103,7 @@ func battle(i, j *node) (winner *node, loser *node) {
 		return
 	}
 
-	if j.val[0] < i.val[0] {
+	if j.cur < i.cur {
 		return j, i
 	}
 	// stable sort

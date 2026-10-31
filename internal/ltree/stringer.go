@@ -11,7 +11,7 @@ func (n node) String() string {
 	if n.val == nil {
 		return fmt.Sprintf("(<nil>,%v)", n.ind)
 	}
-	return fmt.Sprintf("(%v,%v)", n.val, n.ind)
+	return fmt.Sprintf("(%v,%v,%v)", n.val, n.cur, n.ind)
 }
 
 func (t LoserTree) String() string {

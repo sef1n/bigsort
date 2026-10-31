@@ -15,6 +15,7 @@ package ltree
 // node узел с значением и его индексом на нижнем уровне
 type node struct {
 	val []int
+	cur int
 	ind int
 }
 
@@ -31,10 +32,10 @@ func (n *node) Next() {
 	if n.val == nil {
 		return
 	}
-	// Слайс хранит cur + next
-	if len(n.val) < 2 {
+	if len(n.val) < 1 {
 		n.val = nil
 		return
 	}
+	n.cur = n.val[0]
 	n.val = n.val[1:]
 }
