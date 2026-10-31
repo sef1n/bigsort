@@ -9,13 +9,15 @@ func Init(leafs [][]int) (*LoserTree, *node) {
 		return nil, nil
 	}
 
-	lt := LoserTree{levels: createTopLevel(leafs)}
+	lt := LoserTree{nodes: createTopLevel(leafs)}
+	lt.leafsN = len(lt.nodes)
+
 	holdTournament(&lt)
 
 	return &lt, lt.winner
 }
 
-func createTopLevel(leafs [][]int) [][]*node {
+func createTopLevel(leafs [][]int) []*node {
 	// Вычисляем длину начального уровня
 	// вместе с +inf значениями
 	extendedLeafs := 1
@@ -23,8 +25,7 @@ func createTopLevel(leafs [][]int) [][]*node {
 		extendedLeafs <<= 1
 	}
 
-	lvls := make([][]*node, 0, extendedLeafs/2)
-	lvls = append(lvls, make([]*node, 0, extendedLeafs))
+	lvl := make([]*node, 0, extendedLeafs*2)
 
 	// Создаем значащие ноды
 	for i, v := range leafs {
@@ -34,41 +35,30 @@ func createTopLevel(leafs [][]int) [][]*node {
 		if v == nil || len(v) == 0 {
 			continue
 		}
-		lvls[0] = append(lvls[0], &node{val: v, ind: i})
+		lvl = append(lvl, &node{val: v, ind: i})
 	}
 
 	// Дополняем уровень +inf значениями
 	// WARN: Не указывем индекс.
-	for len(lvls[0]) < extendedLeafs {
-		lvls[0] = append(lvls[0], &node{val: nil})
+	for len(lvl) < extendedLeafs {
+		lvl = append(lvl, &node{val: nil})
 	}
 
-	return lvls
-}
-
-func complete(lev *[]*node) {
-	n := 1
-	for n < len(*lev) {
-		n <<= 1
-	}
-	for len(*lev) < n {
-		*lev = append(*lev, &node{val: nil, ind: len(*lev)})
-	}
+	return lvl
 }
 
 // holdTournament зполняет уровни дерева, устанавливает победителя
-// Ожидает, что len(ult.levels) == 1
+// Ожидает, что len(ult.nodes) == 1
 func holdTournament(lt *LoserTree) {
-	rounders := lt.levels[0]
-	winners := make([]*node, 0, len(lt.levels[0])/2)
+	rounders := lt.nodes
+	winners := make([]*node, 0, lt.leafsN/2)
 
 	// depth - куда пишутся проигравшие
-	for depth := 1; len(rounders) > 1; depth++ {
+	for len(rounders) > 1 {
 		// fmt.Printf("Tournament round start, rounders: ")
 		// printPointersSlice(rounders)
 
-		lt.levels = append(lt.levels, make([]*node, 0, len(rounders)/2))
-		round(rounders, &winners, &lt.levels[depth])
+		round(rounders, &winners, &lt.nodes)
 
 		// NOTE: можно использовать один слайс для чтения && записи
 		// т.к. append значения в winners после

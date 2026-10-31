@@ -17,16 +17,15 @@ func TestInit(t *testing.T) {
 		{name: "nil input", inSeq: nil, want: nil},
 		{name: "empty slice", inSeq: [][]int{}, want: nil},
 
-		// Незначащие значения на входе.
+		// Незначащие на входе.
 		{
 			// k=1: паддинга нет, единственный участник - победитель
 			name: "k=1 nil leaf", inSeq: [][]int{nil},
 			want: &LoserTree{
-				levels: [][]*node{
-					{
-						{val: nil, ind: 0},
-					},
+				nodes: []*node{
+					{val: nil, ind: 0},
 				},
+				leafsN: 1,
 				winner: &node{val: nil, ind: 0},
 			},
 		},
@@ -35,11 +34,16 @@ func TestInit(t *testing.T) {
 			name:  "k=3 all nil",
 			inSeq: [][]int{nil, nil, nil},
 			want: &LoserTree{
-				levels: [][]*node{
-					{{val: nil, ind: 0}, {val: nil, ind: 0}, {val: nil, ind: 0}, {val: nil, ind: 0}},
-					{{val: nil, ind: 0}, {val: nil, ind: 0}},
-					{{val: nil, ind: 0}},
+				nodes: []*node{
+					{val: nil, ind: 0},
+					{val: nil, ind: 0},
+					{val: nil, ind: 0},
+					{val: nil, ind: 0},
+					{val: nil, ind: 0},
+					{val: nil, ind: 0},
+					{val: nil, ind: 0},
 				},
+				leafsN: 4,
 				winner: &node{val: nil, ind: 0},
 			},
 		},
@@ -48,11 +52,10 @@ func TestInit(t *testing.T) {
 			// k=1: паддинга нет, единственный участник - победитель
 			name: "k=1 len of leaf == 0", inSeq: [][]int{{}},
 			want: &LoserTree{
-				levels: [][]*node{
-					{
-						{val: nil, ind: 0},
-					},
+				nodes: []*node{
+					{val: nil, ind: 0},
 				},
+				leafsN: 1,
 				winner: &node{val: nil, ind: 0},
 			},
 		},
@@ -61,11 +64,16 @@ func TestInit(t *testing.T) {
 			name:  "k=3 len of all leafs == 0",
 			inSeq: [][]int{{}, {}, {}},
 			want: &LoserTree{
-				levels: [][]*node{
-					{{val: nil, ind: 0}, {val: nil, ind: 0}, {val: nil, ind: 0}, {val: nil, ind: 0}},
-					{{val: nil, ind: 0}, {val: nil, ind: 0}},
-					{{val: nil, ind: 0}},
+				nodes: []*node{
+					{val: nil, ind: 0},
+					{val: nil, ind: 0},
+					{val: nil, ind: 0},
+					{val: nil, ind: 0},
+					{val: nil, ind: 0},
+					{val: nil, ind: 0},
+					{val: nil, ind: 0},
 				},
+				leafsN: 4,
 				winner: &node{val: nil, ind: 0},
 			},
 		},
@@ -76,9 +84,10 @@ func TestInit(t *testing.T) {
 			name:  "k=1 single leaf",
 			inSeq: [][]int{{42}},
 			want: &LoserTree{
-				levels: [][]*node{
-					{{val: []int{42}, ind: 0}},
+				nodes: []*node{
+					{val: []int{42}, ind: 0},
 				},
+				leafsN: 1,
 				winner: &node{val: []int{42}, ind: 0},
 			},
 		},
@@ -88,10 +97,12 @@ func TestInit(t *testing.T) {
 			name:  "k=2 sorted",
 			inSeq: [][]int{{1}, {2}},
 			want: &LoserTree{
-				levels: [][]*node{
-					{{val: []int{1}, ind: 0}, {val: []int{2}, ind: 1}},
-					{{val: []int{2}, ind: 1}},
+				nodes: []*node{
+					{val: []int{1}, ind: 0},
+					{val: []int{2}, ind: 1},
+					{val: []int{2}, ind: 1},
 				},
+				leafsN: 2,
 				winner: &node{val: []int{1}, ind: 0},
 			},
 		},
@@ -101,10 +112,12 @@ func TestInit(t *testing.T) {
 			name:  "k=2 reversed",
 			inSeq: [][]int{{2}, {1}},
 			want: &LoserTree{
-				levels: [][]*node{
-					{{val: []int{2}, ind: 0}, {val: []int{1}, ind: 1}},
-					{{val: []int{2}, ind: 0}},
+				nodes: []*node{
+					{val: []int{2}, ind: 0},
+					{val: []int{1}, ind: 1},
+					{val: []int{2}, ind: 0},
 				},
+				leafsN: 2,
 				winner: &node{val: []int{1}, ind: 1},
 			},
 		},
@@ -116,21 +129,16 @@ func TestInit(t *testing.T) {
 			name:  "k=3 padded to 4",
 			inSeq: [][]int{{3}, {2}, {1}},
 			want: &LoserTree{
-				levels: [][]*node{
-					{
-						{val: []int{3}, ind: 0},
-						{val: []int{2}, ind: 1},
-						{val: []int{1}, ind: 2},
-						{val: nil, ind: 0},
-					},
-					{
-						{val: []int{3}, ind: 0},
-						{val: nil, ind: 0},
-					},
-					{
-						{val: []int{2}, ind: 1},
-					},
+				nodes: []*node{
+					{val: []int{3}, ind: 0},
+					{val: []int{2}, ind: 1},
+					{val: []int{1}, ind: 2},
+					{val: nil, ind: 0},
+					{val: []int{3}, ind: 0},
+					{val: nil, ind: 0},
+					{val: []int{2}, ind: 1},
 				},
+				leafsN: 4,
 				winner: &node{val: []int{1}, ind: 2},
 			},
 		},
@@ -142,21 +150,16 @@ func TestInit(t *testing.T) {
 			name:  "k=3 equal vals",
 			inSeq: [][]int{{1}, {1}, {1}},
 			want: &LoserTree{
-				levels: [][]*node{
-					{
-						{val: []int{1}, ind: 0},
-						{val: []int{1}, ind: 1},
-						{val: []int{1}, ind: 2},
-						{val: nil, ind: 0},
-					},
-					{
-						{val: []int{1}, ind: 1},
-						{val: nil, ind: 0},
-					},
-					{
-						{val: []int{1}, ind: 2},
-					},
+				nodes: []*node{
+					{val: []int{1}, ind: 0},
+					{val: []int{1}, ind: 1},
+					{val: []int{1}, ind: 2},
+					{val: nil, ind: 0},
+					{val: []int{1}, ind: 1},
+					{val: nil, ind: 0},
+					{val: []int{1}, ind: 2},
 				},
+				leafsN: 4,
 				winner: &node{val: []int{1}, ind: 0},
 			},
 		},
@@ -166,21 +169,16 @@ func TestInit(t *testing.T) {
 			name:  "k=4",
 			inSeq: [][]int{{4}, {3}, {2}, {1}},
 			want: &LoserTree{
-				levels: [][]*node{
-					{
-						{val: []int{4}, ind: 0},
-						{val: []int{3}, ind: 1},
-						{val: []int{2}, ind: 2},
-						{val: []int{1}, ind: 3},
-					},
-					{
-						{val: []int{4}, ind: 0},
-						{val: []int{2}, ind: 2},
-					},
-					{
-						{val: []int{3}, ind: 1},
-					},
+				nodes: []*node{
+					{val: []int{4}, ind: 0},
+					{val: []int{3}, ind: 1},
+					{val: []int{2}, ind: 2},
+					{val: []int{1}, ind: 3},
+					{val: []int{4}, ind: 0},
+					{val: []int{2}, ind: 2},
+					{val: []int{3}, ind: 1},
 				},
+				leafsN: 4,
 				winner: &node{val: []int{1}, ind: 3},
 			},
 		},
@@ -193,31 +191,24 @@ func TestInit(t *testing.T) {
 				{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7},
 			},
 			want: &LoserTree{
-				levels: [][]*node{
-					{
-						{val: []int{1, 1}, ind: 0},
-						{val: []int{2, 2}, ind: 1},
-						{val: []int{3, 3}, ind: 2},
-						{val: []int{4, 4}, ind: 3},
-						{val: []int{5, 5}, ind: 4},
-						{val: []int{6, 6}, ind: 5},
-						{val: []int{7}, ind: 6},
-						{val: nil, ind: 0},
-					},
-					{
-						{val: []int{2, 2}, ind: 1},
-						{val: []int{4, 4}, ind: 3},
-						{val: []int{6, 6}, ind: 5},
-						{val: nil, ind: 0},
-					},
-					{
-						{val: []int{3, 3}, ind: 2},
-						{val: []int{7}, ind: 6},
-					},
-					{
-						{val: []int{5, 5}, ind: 4},
-					},
+				nodes: []*node{
+					{val: []int{1, 1}, ind: 0},
+					{val: []int{2, 2}, ind: 1},
+					{val: []int{3, 3}, ind: 2},
+					{val: []int{4, 4}, ind: 3},
+					{val: []int{5, 5}, ind: 4},
+					{val: []int{6, 6}, ind: 5},
+					{val: []int{7}, ind: 6},
+					{val: nil, ind: 0},
+					{val: []int{2, 2}, ind: 1},
+					{val: []int{4, 4}, ind: 3},
+					{val: []int{6, 6}, ind: 5},
+					{val: nil, ind: 0},
+					{val: []int{3, 3}, ind: 2},
+					{val: []int{7}, ind: 6},
+					{val: []int{5, 5}, ind: 4},
 				},
+				leafsN: 8,
 				winner: &node{val: []int{1, 1}, ind: 0},
 			},
 		},
@@ -228,21 +219,16 @@ func TestInit(t *testing.T) {
 			name:  "k=4 all equal, stable tie-break",
 			inSeq: [][]int{{5}, {5}, {5}, {5}},
 			want: &LoserTree{
-				levels: [][]*node{
-					{
-						{val: []int{5}, ind: 0},
-						{val: []int{5}, ind: 1},
-						{val: []int{5}, ind: 2},
-						{val: []int{5}, ind: 3},
-					},
-					{
-						{val: []int{5}, ind: 1},
-						{val: []int{5}, ind: 3},
-					},
-					{
-						{val: []int{5}, ind: 2},
-					},
+				nodes: []*node{
+					{val: []int{5}, ind: 0},
+					{val: []int{5}, ind: 1},
+					{val: []int{5}, ind: 2},
+					{val: []int{5}, ind: 3},
+					{val: []int{5}, ind: 1},
+					{val: []int{5}, ind: 3},
+					{val: []int{5}, ind: 2},
 				},
+				leafsN: 4,
 				winner: &node{val: []int{5}, ind: 0},
 			},
 		},
@@ -252,21 +238,16 @@ func TestInit(t *testing.T) {
 			name:  "same head, stable tie-break by leaf order",
 			inSeq: [][]int{{5, 10}, {5, 20}, {5, 30}},
 			want: &LoserTree{
-				levels: [][]*node{
-					{
-						{val: []int{5, 10}, ind: 0},
-						{val: []int{5, 20}, ind: 1},
-						{val: []int{5, 30}, ind: 2},
-						{val: nil, ind: 0},
-					},
-					{
-						{val: []int{5, 20}, ind: 1},
-						{val: nil, ind: 0},
-					},
-					{
-						{val: []int{5, 30}, ind: 2},
-					},
+				nodes: []*node{
+					{val: []int{5, 10}, ind: 0},
+					{val: []int{5, 20}, ind: 1},
+					{val: []int{5, 30}, ind: 2},
+					{val: nil, ind: 0},
+					{val: []int{5, 20}, ind: 1},
+					{val: nil, ind: 0},
+					{val: []int{5, 30}, ind: 2},
 				},
+				leafsN: 4,
 				winner: &node{val: []int{5, 10}, ind: 0},
 			},
 		},
