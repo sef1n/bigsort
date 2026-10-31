@@ -21,9 +21,13 @@ type node struct {
 
 // LoserTree дерево
 type LoserTree struct {
-	nodes  []*node
+	// Само дерево
+	nodes []*node
+	// arena - арена для нод
+	// все аллоцируются в одно место
+	arena []node
+
 	winner *node
-	leafsN int
 }
 
 // Next возвращает следующее значение в слайсе.

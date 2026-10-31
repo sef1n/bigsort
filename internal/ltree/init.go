@@ -9,15 +9,14 @@ func Init(leafs [][]int) (*LoserTree, *node) {
 		return nil, nil
 	}
 
-	lt := LoserTree{nodes: createTopLevel(leafs)}
-	lt.leafsN = len(lt.nodes)
+	lt := initStruct(leafs)
 
-	holdTournament(&lt)
+	holdTournament(lt)
 
-	return &lt, lt.winner
+	return lt, lt.winner
 }
 
-func createTopLevel(leafs [][]int) []*node {
+func initStruct(leafs [][]int) *LoserTree {
 	// Вычисляем длину начального уровня
 	// вместе с +inf значениями
 	extendedLeafs := 1
@@ -25,9 +24,14 @@ func createTopLevel(leafs [][]int) []*node {
 		extendedLeafs <<= 1
 	}
 
-	lvl := make([]*node, 0, extendedLeafs*2)
+	lt := LoserTree{
+		nodes: make([]*node, 0, extendedLeafs*2),
+		// Все inf ссылаются на одну ноду
+		arena: make([]node, 0, len(leafs)+1),
+	}
 
 	// Создаем значащие ноды
+	// Для создания не более одной nil-node в арене
 	for i, v := range leafs {
 		// Валидация листьев
 		// Пропускаем несравниваемые,
@@ -35,29 +39,33 @@ func createTopLevel(leafs [][]int) []*node {
 		if v == nil || len(v) == 0 {
 			continue
 		}
-		lvl = append(lvl, &node{val: v[1:], cur: v[0], ind: i})
+		lt.arena = append(lt.arena, node{})
+		n := &lt.arena[len(lt.arena)-1]
+		n.val, n.cur, n.ind = v[1:], v[0], i
+		lt.nodes = append(lt.nodes, n)
 	}
 
 	// Дополняем уровень +inf значениями
-	// WARN: Не указывем индекс.
-	for len(lvl) < extendedLeafs {
-		lvl = append(lvl, &node{val: nil})
+	// Создаем ноду, на которую сслыаются
+	// все заведомо проигравшие
+	if len(lt.nodes) < extendedLeafs {
+		lt.arena = append(lt.arena, node{})
 	}
 
-	return lvl
+	// NOTE: Не указывем индекс.
+	for len(lt.nodes) < extendedLeafs {
+		lt.nodes = append(lt.nodes, &lt.arena[len(lt.arena)-1])
+	}
+	return &lt
 }
 
 // holdTournament зполняет уровни дерева, устанавливает победителя
 // Ожидает, что len(ult.nodes) == 1
 func holdTournament(lt *LoserTree) {
 	rounders := lt.nodes
-	winners := make([]*node, 0, lt.leafsN/2)
+	winners := make([]*node, 0, len(lt.nodes)/2)
 
-	// depth - куда пишутся проигравшие
 	for len(rounders) > 1 {
-		// fmt.Printf("Tournament round start, rounders: ")
-		// printPointersSlice(rounders)
-
 		round(rounders, &winners, &lt.nodes)
 
 		// NOTE: можно использовать один слайс для чтения && записи
@@ -65,12 +73,7 @@ func holdTournament(lt *LoserTree) {
 		// прочтения этого значения
 		rounders = winners
 		winners = winners[:0]
-
-		// fmt.Printf("Tournament round end, winners: ")
-		// printPointersSlice(rounders)
-		// fmt.Println()
 	}
-	// fmt.Printf("Tournament end, winner: %v\n", rounders)
 	lt.winner = rounders[0]
 	return
 }

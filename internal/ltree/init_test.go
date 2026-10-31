@@ -1,9 +1,22 @@
 package ltree
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 )
+
+// snapshot возвращает копию дерева, у которой обнулено поле arena.
+// Сравниваем только логическое состояние (nodes + winner),
+// а не внутреннее представление (арена, размеры и т.п.).
+func snapshot(t *LoserTree) *LoserTree {
+	if t == nil {
+		return nil
+	}
+	cp := *t
+	cp.arena = nil
+	return &cp
+}
 
 type initTest struct {
 	name  string
@@ -19,20 +32,14 @@ func TestInit(t *testing.T) {
 
 		// Незначащие на входе.
 		{
-			// k=1: паддинга нет, единственный участник - победитель
 			name: "k=1 nil leaf", inSeq: [][]int{nil},
 			want: &LoserTree{
-				nodes: []*node{
-					{val: nil, ind: 0},
-				},
-				leafsN: 1,
-				winner: &node{val: nil, ind: 0},
+				nodes:  []*node{{}},
+				winner: &node{},
 			},
 		},
 		{
-			// k=3: паддинг до 4.
-			name:  "k=3 all nil",
-			inSeq: [][]int{nil, nil, nil},
+			name: "k=3 all nil", inSeq: [][]int{nil, nil, nil},
 			want: &LoserTree{
 				nodes: []*node{
 					{val: nil, ind: 0},
@@ -43,26 +50,18 @@ func TestInit(t *testing.T) {
 					{val: nil, ind: 0},
 					{val: nil, ind: 0},
 				},
-				leafsN: 4,
 				winner: &node{val: nil, ind: 0},
 			},
 		},
-
 		{
-			// k=1: паддинга нет, единственный участник - победитель
 			name: "k=1 len of leaf == 0", inSeq: [][]int{{}},
 			want: &LoserTree{
-				nodes: []*node{
-					{val: nil, ind: 0},
-				},
-				leafsN: 1,
+				nodes:  []*node{{val: nil, ind: 0}},
 				winner: &node{val: nil, ind: 0},
 			},
 		},
 		{
-			// k=3: паддинг до 4.
-			name:  "k=3 len of all leafs == 0",
-			inSeq: [][]int{{}, {}, {}},
+			name: "k=3 len of all leafs == 0", inSeq: [][]int{{}, {}, {}},
 			want: &LoserTree{
 				nodes: []*node{
 					{val: nil, ind: 0},
@@ -73,61 +72,42 @@ func TestInit(t *testing.T) {
 					{val: nil, ind: 0},
 					{val: nil, ind: 0},
 				},
-				leafsN: 4,
 				winner: &node{val: nil, ind: 0},
 			},
 		},
 
-		// Валидные данные на входе.
+		// Валидные данные.
 		{
-			// k=1: паддинга нет, holdTournament не делает ни одного раунда.
-			name:  "k=1 single leaf",
-			inSeq: [][]int{{42}},
+			name: "k=1 single leaf", inSeq: [][]int{{42}},
 			want: &LoserTree{
-				nodes: []*node{
-					{val: []int{}, cur: 42, ind: 0},
-				},
-				leafsN: 1,
+				nodes:  []*node{{val: []int{}, cur: 42, ind: 0}},
 				winner: &node{val: []int{}, cur: 42, ind: 0},
 			},
 		},
-
 		{
-			// k=2 sorted: [1] < [2]. Loser — [2].
-			name:  "k=2 sorted",
-			inSeq: [][]int{{1}, {2}},
+			name: "k=2 sorted", inSeq: [][]int{{1}, {2}},
 			want: &LoserTree{
 				nodes: []*node{
 					{val: []int{}, cur: 1, ind: 0},
 					{val: []int{}, cur: 2, ind: 1},
 					{val: []int{}, cur: 2, ind: 1},
 				},
-				leafsN: 2,
 				winner: &node{val: []int{}, cur: 1, ind: 0},
 			},
 		},
-
 		{
-			// k=2 reversed: [2] > [1]. Loser — [2]@0, winner — [1]@1.
-			name:  "k=2 reversed",
-			inSeq: [][]int{{2}, {1}},
+			name: "k=2 reversed", inSeq: [][]int{{2}, {1}},
 			want: &LoserTree{
 				nodes: []*node{
 					{val: []int{}, cur: 2, ind: 0},
 					{val: []int{}, cur: 1, ind: 1},
 					{val: []int{}, cur: 2, ind: 0},
 				},
-				leafsN: 2,
 				winner: &node{val: []int{}, cur: 1, ind: 1},
 			},
 		},
-
 		{
-			// k=3 → паддинг до 4.
-			// R1: (0,1)→win[2]@1 lose[3]@0; (2,3)→win[1]@2 lose nil@0
-			// R2: ([2]@1,[1]@2)→win[1]@2 lose[2]@1
-			name:  "k=3 padded to 4",
-			inSeq: [][]int{{3}, {2}, {1}},
+			name: "k=3 padded to 4", inSeq: [][]int{{3}, {2}, {1}},
 			want: &LoserTree{
 				nodes: []*node{
 					{val: []int{}, cur: 3, ind: 0},
@@ -138,17 +118,11 @@ func TestInit(t *testing.T) {
 					{val: nil, ind: 0},
 					{val: []int{}, cur: 2, ind: 1},
 				},
-				leafsN: 4,
 				winner: &node{val: []int{}, cur: 1, ind: 2},
 			},
 		},
-
 		{
-			// k=3: паддинг до 4.
-			// Сортировка стабильна: победитель - первый элемент
-			// с этим значением
-			name:  "k=3 equal vals",
-			inSeq: [][]int{{1}, {1}, {1}},
+			name: "k=3 equal vals", inSeq: [][]int{{1}, {1}, {1}},
 			want: &LoserTree{
 				nodes: []*node{
 					{val: []int{}, cur: 1, ind: 0},
@@ -159,15 +133,11 @@ func TestInit(t *testing.T) {
 					{val: nil, ind: 0},
 					{val: []int{}, cur: 1, ind: 2},
 				},
-				leafsN: 4,
 				winner: &node{val: []int{}, cur: 1, ind: 0},
 			},
 		},
-
 		{
-			// k=4: R1 losers [4]@0,[2]@2; R2 loser [3]@1; winner [1]@3.
-			name:  "k=4",
-			inSeq: [][]int{{4}, {3}, {2}, {1}},
+			name: "k=4", inSeq: [][]int{{4}, {3}, {2}, {1}},
 			want: &LoserTree{
 				nodes: []*node{
 					{val: []int{}, cur: 4, ind: 0},
@@ -178,14 +148,10 @@ func TestInit(t *testing.T) {
 					{val: []int{}, cur: 2, ind: 2},
 					{val: []int{}, cur: 3, ind: 1},
 				},
-				leafsN: 4,
 				winner: &node{val: []int{}, cur: 1, ind: 3},
 			},
 		},
-
 		{
-			// k=7 → паддинг до 8. Совпадает с выводом cmd/test
-			// ([1 1]@0, [2 2]@1, [3 3]@2, [4 4]@3, [5 5]@4, [6 6]@5, [7]@6, nil@0).
 			name: "k=7 padded to 8",
 			inSeq: [][]int{
 				{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7},
@@ -208,16 +174,11 @@ func TestInit(t *testing.T) {
 					{val: []int{}, cur: 7, ind: 6},
 					{val: []int{5}, cur: 5, ind: 4},
 				},
-				leafsN: 8,
 				winner: &node{val: []int{1}, cur: 1, ind: 0},
 			},
 		},
-
 		{
-			// battle при равенстве возвращает i как winner,
-			// то есть стабильный tie-break по меньшему leafInd.
-			name:  "k=4 all equal, stable tie-break",
-			inSeq: [][]int{{5}, {5}, {5}, {5}},
+			name: "k=4 all equal, stable tie-break", inSeq: [][]int{{5}, {5}, {5}, {5}},
 			want: &LoserTree{
 				nodes: []*node{
 					{val: []int{}, cur: 5, ind: 0},
@@ -228,13 +189,10 @@ func TestInit(t *testing.T) {
 					{val: []int{}, cur: 5, ind: 3},
 					{val: []int{}, cur: 5, ind: 2},
 				},
-				leafsN: 4,
 				winner: &node{val: []int{}, cur: 5, ind: 0},
 			},
 		},
-
 		{
-			// Less смотрит только на [0]; хвосты не влияют на порядок.
 			name:  "same head, stable tie-break by leaf order",
 			inSeq: [][]int{{5, 10}, {5, 20}, {5, 30}},
 			want: &LoserTree{
@@ -247,7 +205,6 @@ func TestInit(t *testing.T) {
 					{val: nil, ind: 0},
 					{val: []int{30}, cur: 5, ind: 2},
 				},
-				leafsN: 4,
 				winner: &node{val: []int{10}, cur: 5, ind: 0},
 			},
 		},
@@ -256,8 +213,9 @@ func TestInit(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			got, w := Init(test.inSeq)
-			if !reflect.DeepEqual(got, test.want) {
-				t.Errorf("Init() tree mismatch\n got: %+v\nwant: %+v", got, test.want)
+			if !reflect.DeepEqual(snapshot(got), snapshot(test.want)) {
+				t.Errorf("Init() tree mismatch\n got: %+v\nwant: %+v",
+					snapshot(got), snapshot(test.want))
 			}
 
 			var wantWinner *node
@@ -266,6 +224,51 @@ func TestInit(t *testing.T) {
 			}
 			if !reflect.DeepEqual(w, wantWinner) {
 				t.Errorf("Init() winner mismatch\n got: %+v\nwant: %+v", w, wantWinner)
+			}
+		})
+	}
+}
+
+// TestInitArenaLayout проверяет инвариант арены:
+// каждая нода дерева и победитель должны указывать внутрь arena.
+// Конкретные значения нод и точный размер arena не важны —
+// это внутреннее представление, а не контракт.
+func TestInitArenaLayout(t *testing.T) {
+	for _, k := range []int{1, 2, 3, 4, 5, 7, 8, 16, 100, 256} {
+		t.Run(fmt.Sprintf("k=%d", k), func(t *testing.T) {
+			in := make([][]int, k)
+			for i := range in {
+				in[i] = []int{i, i + 1000} // у каждого листа хотя бы одно значение
+			}
+			lt, _ := Init(in)
+			if lt == nil {
+				t.Fatal("Init returned nil for non-empty input")
+			}
+
+			inArena := func(n *node) bool {
+				for j := range lt.arena {
+					if n == &lt.arena[j] {
+						return true
+					}
+				}
+				return false
+			}
+
+			for i, n := range lt.nodes {
+				if n == nil {
+					t.Errorf("nodes[%d] = nil", i)
+					continue
+				}
+				if !inArena(n) {
+					t.Errorf("nodes[%d] = %p not from arena", i, n)
+				}
+			}
+
+			if lt.winner == nil {
+				t.Fatal("winner = nil")
+			}
+			if !inArena(lt.winner) {
+				t.Errorf("winner = %p not from arena", lt.winner)
 			}
 		})
 	}

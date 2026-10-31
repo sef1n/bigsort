@@ -16,7 +16,8 @@ func (n node) String() string {
 
 func (t LoserTree) String() string {
 	var sb strings.Builder
-	fmt.Fprint(&sb, "{\n")
+	fmt.Fprint(&sb, "{\nNodes: ")
+	fmt.Fprint(&sb, "{")
 	for _, node := range t.nodes {
 		if node == nil {
 			fmt.Fprint(&sb, "<nil node>")
@@ -24,7 +25,13 @@ func (t LoserTree) String() string {
 			fmt.Fprintf(&sb, "%v", node)
 		}
 	}
-	fmt.Fprint(&sb, "\n}")
-	fmt.Fprintf(&sb, "; Winner node: %v }", t.winner)
+	fmt.Fprint(&sb, "},\nArena: ")
+
+	fmt.Fprint(&sb, "{")
+	for _, node := range t.arena {
+		fmt.Fprintf(&sb, "%v", node)
+	}
+	fmt.Fprint(&sb, "},\n")
+	fmt.Fprintf(&sb, "Winner: %v\n}", t.winner)
 	return sb.String()
 }
