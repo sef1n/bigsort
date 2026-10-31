@@ -1,5 +1,7 @@
 package ltree
 
+import "math"
+
 // type Luser interface {
 // 	// Следующее значение
 // 	// Обновляет возвращаемое Val значение
@@ -31,10 +33,13 @@ type LoserTree struct {
 }
 
 // Next возвращает следующее значение в слайсе.
-// Если данные закончились, устанавливает слайс = nil.
+// Если данные закончились, устанавливает
+// {val: nil, cur: MaxInt, ind: -1}
 func (n *node) Next() {
 	if len(n.val) == 0 {
 		n.val = nil
+		n.cur = math.MaxInt
+		n.ind = -1
 		return
 	}
 	n.cur = n.val[0]

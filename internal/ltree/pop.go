@@ -6,16 +6,17 @@ package ltree
 // возвращает ok = false
 func Pop(t *LoserTree) (winner *node, ok bool) {
 	// По контракту слайс t.nodes != nil, len(t.nodes) != 0
-	if t == nil {
+	// t.winner != nil
+	if t == nil || t.winner.ind < 0 {
 		return
 	}
 
 	winner = t.winner
+	origInd := winner.ind
 	winner.Next()
 
-	origInd := winner.ind    // читается один раз
-	levelPtr := len(t.arena) // фактическое кол-во нод == кол-ву листьев
-	levelSize := len(t.arena) >> 1
+	levelPtr := (len(t.nodes) + 1) / 2
+	levelSize := levelPtr >> 1
 	indShifted := origInd >> 1
 	oppInd := levelPtr + indShifted
 
@@ -31,7 +32,7 @@ func Pop(t *LoserTree) (winner *node, ok bool) {
 	}
 	t.winner = winner
 
-	if t.winner.val == nil {
+	if t.winner.ind < 0 {
 		return nil, false
 	}
 	return winner, true

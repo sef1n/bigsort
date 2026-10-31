@@ -1,5 +1,7 @@
 package ltree
 
+import "math"
+
 // NOTE: листья, чьи значения == nil || len == 0,
 // не участвуют в "турнире" - они приравниваются к
 // nil (inf value).
@@ -49,10 +51,9 @@ func initStruct(leafs [][]int) *LoserTree {
 	// Создаем ноду, на которую сслыаются
 	// все заведомо проигравшие
 	if len(lt.nodes) < extendedLeafs {
-		lt.arena = append(lt.arena, node{})
+		lt.arena = append(lt.arena, node{cur: math.MaxInt, ind: -1})
 	}
 
-	// NOTE: Не указывем индекс.
 	for len(lt.nodes) < extendedLeafs {
 		lt.nodes = append(lt.nodes, &lt.arena[len(lt.arena)-1])
 	}
@@ -92,19 +93,18 @@ func round(rouneders []*node, winners *[]*node, losers *[]*node) {
 }
 
 // battle сравнивает значения. Объявляет победителем меньшее значение
-// Принимает nil за +infinity
-// WARN: не использует интерфейс
-func battle(i, j *node) (winner *node, loser *node) {
-	if i.val == nil {
-		return j, i
-	}
-	if j.val == nil {
-		return i, j
-	}
-
+// Значения с ind == -1 считаются бесконечно большими и могут проиграть
+// только таким же значениям.
+// Функция нестабильна при сортировке двух бесконечно больших значений -
+// первый параметр не обязательно будет победителем.
+func battle(i, j *node) (winner, loser *node) {
 	if j.cur < i.cur {
 		return j, i
 	}
-	// stable sort
+
+	if i.ind < 0 {
+		return j, i
+	}
+
 	return i, j
 }

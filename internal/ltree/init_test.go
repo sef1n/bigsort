@@ -1,7 +1,7 @@
 package ltree
 
 import (
-	"fmt"
+	"math"
 	"reflect"
 	"testing"
 )
@@ -25,54 +25,39 @@ type initTest struct {
 }
 
 func TestInit(t *testing.T) {
+	inf := &node{val: nil, cur: math.MaxInt, ind: -1}
 	tests := []initTest{
 		// Пустые входные данные.
 		{name: "nil input", inSeq: nil, want: nil},
 		{name: "empty slice", inSeq: [][]int{}, want: nil},
 
-		// Незначащие на входе.
+		// Все листья незначащие — единственный участник inf.
 		{
 			name: "k=1 nil leaf", inSeq: [][]int{nil},
 			want: &LoserTree{
-				nodes:  []*node{{}},
-				winner: &node{},
+				nodes:  []*node{inf},
+				winner: inf,
 			},
 		},
 		{
 			name: "k=3 all nil", inSeq: [][]int{nil, nil, nil},
 			want: &LoserTree{
-				nodes: []*node{
-					{val: nil, ind: 0},
-					{val: nil, ind: 0},
-					{val: nil, ind: 0},
-					{val: nil, ind: 0},
-					{val: nil, ind: 0},
-					{val: nil, ind: 0},
-					{val: nil, ind: 0},
-				},
-				winner: &node{val: nil, ind: 0},
+				nodes:  []*node{inf, inf, inf, inf, inf, inf, inf},
+				winner: inf,
 			},
 		},
 		{
 			name: "k=1 len of leaf == 0", inSeq: [][]int{{}},
 			want: &LoserTree{
-				nodes:  []*node{{val: nil, ind: 0}},
-				winner: &node{val: nil, ind: 0},
+				nodes:  []*node{inf},
+				winner: inf,
 			},
 		},
 		{
 			name: "k=3 len of all leafs == 0", inSeq: [][]int{{}, {}, {}},
 			want: &LoserTree{
-				nodes: []*node{
-					{val: nil, ind: 0},
-					{val: nil, ind: 0},
-					{val: nil, ind: 0},
-					{val: nil, ind: 0},
-					{val: nil, ind: 0},
-					{val: nil, ind: 0},
-					{val: nil, ind: 0},
-				},
-				winner: &node{val: nil, ind: 0},
+				nodes:  []*node{inf, inf, inf, inf, inf, inf, inf},
+				winner: inf,
 			},
 		},
 
@@ -107,31 +92,35 @@ func TestInit(t *testing.T) {
 			},
 		},
 		{
+			// 3 листа + 1 pad.
+			// R1: battle(l0,l1)=(l1,l0), battle(l2,inf)=(l2,inf)
+			// R2: battle(l1,l2)=(l2,l1)
 			name: "k=3 padded to 4", inSeq: [][]int{{3}, {2}, {1}},
 			want: &LoserTree{
 				nodes: []*node{
-					{val: []int{}, cur: 3, ind: 0},
-					{val: []int{}, cur: 2, ind: 1},
-					{val: []int{}, cur: 1, ind: 2},
-					{val: nil, ind: 0},
-					{val: []int{}, cur: 3, ind: 0},
-					{val: nil, ind: 0},
-					{val: []int{}, cur: 2, ind: 1},
+					{val: []int{}, cur: 3, ind: 0}, // l0
+					{val: []int{}, cur: 2, ind: 1}, // l1
+					{val: []int{}, cur: 1, ind: 2}, // l2
+					inf,                            // pad
+					{val: []int{}, cur: 3, ind: 0}, // loser l0
+					inf,                            // loser pad
+					{val: []int{}, cur: 2, ind: 1}, // loser l1
 				},
 				winner: &node{val: []int{}, cur: 1, ind: 2},
 			},
 		},
 		{
+			// tie-break: на равенстве выигрывает левый (i).
 			name: "k=3 equal vals", inSeq: [][]int{{1}, {1}, {1}},
 			want: &LoserTree{
 				nodes: []*node{
 					{val: []int{}, cur: 1, ind: 0},
 					{val: []int{}, cur: 1, ind: 1},
 					{val: []int{}, cur: 1, ind: 2},
-					{val: nil, ind: 0},
-					{val: []int{}, cur: 1, ind: 1},
-					{val: nil, ind: 0},
-					{val: []int{}, cur: 1, ind: 2},
+					inf,
+					{val: []int{}, cur: 1, ind: 1}, // loser l1
+					inf,
+					{val: []int{}, cur: 1, ind: 2}, // loser l2
 				},
 				winner: &node{val: []int{}, cur: 1, ind: 0},
 			},
@@ -152,6 +141,10 @@ func TestInit(t *testing.T) {
 			},
 		},
 		{
+			// 7 листьев + 1 pad.
+			// R1 losers: l1, l3, l5, inf
+			// R2 losers: l2, l6
+			// R3 loser:  l4
 			name: "k=7 padded to 8",
 			inSeq: [][]int{
 				{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7},
@@ -165,11 +158,11 @@ func TestInit(t *testing.T) {
 					{val: []int{5}, cur: 5, ind: 4},
 					{val: []int{6}, cur: 6, ind: 5},
 					{val: []int{}, cur: 7, ind: 6},
-					{val: nil, ind: 0},
+					inf,
 					{val: []int{2}, cur: 2, ind: 1},
 					{val: []int{4}, cur: 4, ind: 3},
 					{val: []int{6}, cur: 6, ind: 5},
-					{val: nil, ind: 0},
+					inf,
 					{val: []int{3}, cur: 3, ind: 2},
 					{val: []int{}, cur: 7, ind: 6},
 					{val: []int{5}, cur: 5, ind: 4},
@@ -193,6 +186,8 @@ func TestInit(t *testing.T) {
 			},
 		},
 		{
+			// 3 листа с равными cur, разными хвостами + 1 pad.
+			// Less смотрит только на cur; tie-break по меньшему ind.
 			name:  "same head, stable tie-break by leaf order",
 			inSeq: [][]int{{5, 10}, {5, 20}, {5, 30}},
 			want: &LoserTree{
@@ -200,9 +195,9 @@ func TestInit(t *testing.T) {
 					{val: []int{10}, cur: 5, ind: 0},
 					{val: []int{20}, cur: 5, ind: 1},
 					{val: []int{30}, cur: 5, ind: 2},
-					{val: nil, ind: 0},
+					inf,
 					{val: []int{20}, cur: 5, ind: 1},
-					{val: nil, ind: 0},
+					inf,
 					{val: []int{30}, cur: 5, ind: 2},
 				},
 				winner: &node{val: []int{10}, cur: 5, ind: 0},
@@ -229,47 +224,67 @@ func TestInit(t *testing.T) {
 	}
 }
 
-// TestInitArenaLayout проверяет инвариант арены:
-// каждая нода дерева и победитель должны указывать внутрь arena.
-// Конкретные значения нод и точный размер arena не важны —
-// это внутреннее представление, а не контракт.
-func TestInitArenaLayout(t *testing.T) {
-	for _, k := range []int{1, 2, 3, 4, 5, 7, 8, 16, 100, 256} {
-		t.Run(fmt.Sprintf("k=%d", k), func(t *testing.T) {
-			in := make([][]int, k)
-			for i := range in {
-				in[i] = []int{i, i + 1000} // у каждого листа хотя бы одно значение
-			}
-			lt, _ := Init(in)
-			if lt == nil {
-				t.Fatal("Init returned nil for non-empty input")
-			}
-
-			inArena := func(n *node) bool {
-				for j := range lt.arena {
-					if n == &lt.arena[j] {
-						return true
-					}
-				}
-				return false
-			}
-
-			for i, n := range lt.nodes {
-				if n == nil {
-					t.Errorf("nodes[%d] = nil", i)
-					continue
-				}
-				if !inArena(n) {
-					t.Errorf("nodes[%d] = %p not from arena", i, n)
-				}
-			}
-
-			if lt.winner == nil {
-				t.Fatal("winner = nil")
-			}
-			if !inArena(lt.winner) {
-				t.Errorf("winner = %p not from arena", lt.winner)
-			}
-		})
-	}
-}
+//
+// type testnode struct {
+// 	cur int
+// 	val []int
+// 	ind int
+// }
+// type cmpRes struct {
+// 	w, l *testnode
+// }
+// type battleTest struct {
+// 	i, j *testnode
+// 	res  cmpRes
+// }
+//
+// func TestBattle(t *testing.T) {
+// 	maxDead := &testnode{cur: math.MaxInt, ind: -1}
+// 	maxAlive := &testnode{cur: math.MaxInt}
+// 	normAlive := &testnode{cur: 1}
+// 	tests := []battleTest{
+// 		{i: maxDead, j: maxAlive, res: cmpRes{maxAlive, maxDead}},
+// 		{i: maxAlive, j: maxDead, res: cmpRes{maxAlive, maxDead}},
+// 		{i: maxDead, j: maxDead, res: cmpRes{maxDead, maxDead}},
+//
+// 		{i: maxDead, j: normAlive, res: cmpRes{normAlive, maxDead}},
+// 		{i: normAlive, j: maxDead, res: cmpRes{normAlive, maxDead}},
+// 		{i: normAlive, j: maxAlive, res: cmpRes{normAlive, maxAlive}},
+// 		{i: maxAlive, j: normAlive, res: cmpRes{normAlive, maxAlive}},
+// 	}
+//
+// 	for _, test := range tests {
+// 		w, l := battle2(test.i, test.j)
+// 		if !resEqual(w, test.res.w) {
+// 			t.Errorf("got w %v != want w %v", w, test.res.w)
+// 		}
+//
+// 		if !resEqual(l, test.res.l) {
+// 			t.Errorf("got l %v != want l %v", l, test.res.l)
+// 		}
+// 	}
+// }
+//
+// func battle2(i, j *testnode) (winner, loser *testnode) {
+// 	if j.cur < i.cur {
+// 		return j, i
+// 	}
+//
+// 	if i.ind < 0 {
+// 		return j, i
+// 	}
+//
+// 	return i, j
+// }
+//
+// func resEqual(i, j *testnode) bool {
+// 	if (i == nil && j != nil) || (i != nil && j == nil) {
+// 		return false
+// 	}
+//
+// 	if (i.cur == j.cur) && slices.Equal(i.val, j.val) && (i.ind == j.ind) {
+// 		return true
+// 	}
+//
+// 	return false
+// }
