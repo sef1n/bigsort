@@ -29,10 +29,7 @@ type LoserTree struct {
 // Next возвращает следующее значение в слайсе.
 // Если данные закончились, устанавливает слайс = nil.
 func (n *node) Next() {
-	if n.val == nil {
-		return
-	}
-	if len(n.val) < 1 {
+	if len(n.val) == 0 {
 		n.val = nil
 		return
 	}
