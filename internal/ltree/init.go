@@ -93,14 +93,10 @@ func round(rouneders []*node, winners *[]*node, losers *[]*node) {
 // WARN: не использует интерфейс
 func battle(i, j *node) (winner *node, loser *node) {
 	if i.val == nil {
-		winner = j
-		loser = i
-		return
+		return j, i
 	}
 	if j.val == nil {
-		winner = i
-		loser = j
-		return
+		return i, j
 	}
 
 	if j.cur < i.cur {

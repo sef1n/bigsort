@@ -13,11 +13,13 @@ func Pop(t *LoserTree) (winner *node, ok bool) {
 	winner = t.winner
 	winner.Next()
 
+	origInd := winner.ind // читается один раз
 	levelPtr := t.leafsN
-	oppInd := levelPtr + (winner.ind >> 1)
-	levelSize := t.leafsN >> 1 // размер 1-го уровня
+	levelSize := t.leafsN >> 1
+	indShifted := origInd >> 1
+	oppInd := levelPtr + indShifted
 
-	for i := 2; oppInd < len(t.nodes); i++ {
+	for oppInd < len(t.nodes) {
 		// fmt.Printf("Opp ind [%v]\n", oppInd)
 		// fmt.Printf("Participant %v; opponent %v\n", winner, opponent)
 
@@ -27,9 +29,10 @@ func Pop(t *LoserTree) (winner *node, ok bool) {
 		winner, t.nodes[oppInd] = battle(winner, t.nodes[oppInd])
 		// fmt.Printf("Battle res: winner %v, loser %v\n", winner, loser)
 
-		levelPtr += levelSize // переход к следующему уровню
+		levelPtr += levelSize
 		levelSize >>= 1
-		oppInd = levelPtr + (winner.ind >> i)
+		indShifted >>= 1
+		oppInd = levelPtr + indShifted
 
 		// fmt.Printf("Afterround tree %+v\n", t)
 		// fmt.Println()
