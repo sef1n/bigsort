@@ -6,16 +6,15 @@ import "math"
 // не участвуют в "турнире" - они приравниваются к
 // nil (inf value).
 
-func Init(leafs [][]int) (*LoserTree, *node) {
+func Init(leafs [][]int) *LoserTree {
 	if leafs == nil || len(leafs) == 0 {
-		return nil, nil
+		return nil
 	}
 
 	lt := initStruct(leafs)
-
 	holdTournament(lt)
 
-	return lt, lt.winner
+	return lt
 }
 
 func initStruct(leafs [][]int) *LoserTree {

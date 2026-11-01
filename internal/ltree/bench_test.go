@@ -10,22 +10,76 @@ import (
 	"github.com/bboreham/go-loser"
 )
 
+// goLoserLoopCount — сколько значений реально отдаёт стандартный
+// цикл `for Next { At }` в go-loser. Используется тестом для
+// сверки и в комментарии к бенчмарку как «эталонное» число шагов.
+func goLoserLoopCount(k, n int) int {
+	seqs := makeSeqs(k, n)
+	gt := loser.New[int, *seq](seqs, math.MaxInt)
+	c := 0
+	for gt.Next() {
+		_ = gt.At()
+		c++
+	}
+	return c
+}
+
+// TestBenchCountsMatch гарантирует, что оба бенчмарка делают
+// одинаковое число шагов слияния. go-loser в стандартном цикле
+// `for Next {At}` теряет по одному значению на seq (первое),
+// поэтому ожидаемое число = k*(n-1). ltree обрезается до того же.
+func TestBenchCountsMatch(t *testing.T) {
+	for _, tc := range []struct{ k, n int }{
+		{4, 10}, {4, 100}, {16, 100}, {256, 100},
+	} {
+		t.Run(fmt.Sprintf("k=%d,n=%d", tc.k, tc.n), func(t *testing.T) {
+			want := tc.k * (tc.n - 1)
+
+			// ltree: ровно want pop'ов.
+			leafs := makeLeafs(tc.k, tc.n)
+			tree := ltree.Init(leafs)
+			lc := 0
+			for lc < want {
+				if _, _, ok := ltree.Pop(tree); !ok {
+					break
+				}
+				lc++
+			}
+
+			// go-loser: стандартный цикл.
+			gc := goLoserLoopCount(tc.k, tc.n)
+
+			t.Logf("go-loser: %d, ltree: %d, want: %d", gc, lc, want)
+
+			if lc != want {
+				t.Errorf("ltree did %d pops, want %d", lc, want)
+			}
+			if gc != want {
+				t.Errorf("go-loser did %d iterations, want %d", gc, want)
+			}
+		})
+	}
+}
+
 func BenchmarkLtreePop(b *testing.B) {
 	for _, k := range []int{4, 16, 64, 256} {
 		for _, n := range []int{100, 1000} {
 			b.Run(fmt.Sprintf("k=%d,n=%d", k, n), func(b *testing.B) {
 				template := makeLeafs(k, n)
+				// go-loser's standard loop does exactly k*(n-1) merge steps
+				// (loses first value of each seq). Match it.
+				iters := k * (n - 1)
 
 				b.ReportAllocs()
 				b.ResetTimer()
 				for i := 0; i < b.N; i++ {
 					b.StopTimer()
 					leafs := cloneLeafs(template)
-					tree, _ := ltree.Init(leafs)
+					tree := ltree.Init(leafs)
 					b.StartTimer()
 
-					for {
-						if _, ok := ltree.Pop(tree); !ok {
+					for j := 0; j < iters; j++ {
+						if _, _, ok := ltree.Pop(tree); !ok {
 							break
 						}
 					}
@@ -36,7 +90,6 @@ func BenchmarkLtreePop(b *testing.B) {
 }
 
 func BenchmarkGoLoserPop(b *testing.B) {
-	// for _, k := range []int{4, 16, 64, 256} {
 	for _, k := range []int{4, 16, 64, 256} {
 		for _, n := range []int{100, 1000} {
 			b.Run(fmt.Sprintf("k=%d,n=%d", k, n), func(b *testing.B) {
@@ -64,7 +117,7 @@ func makeLeafs(k, n int) [][]int {
 	for i := range leafs {
 		l := make([]int, n)
 		for j := range l {
-			l[j] = i*n + j // Каждый лист отсортирован
+			l[j] = i*n + j
 		}
 		leafs[i] = l
 	}
@@ -81,29 +134,36 @@ func cloneLeafs(src [][]int) [][]int {
 	return dst
 }
 
-// seq адаптирует []int под loser.Sequence[int].
-// New вызывает Next() один раз для инициализации,
-// поэтому первый элемент «теряется» — ровно как и в ltree.Pop.
-type seq []int
+// seq адаптирует последовательность под loser.Sequence[int].
+// cur — текущее значение (то, что вернёт At), rest — оставшиеся.
+// makeSeqs инициализирует cur=vals[0], rest=vals[1:], поэтому
+// New видит настоящее первое значение, а не zero-value.
+// go-loser в New вызывает Next() на каждом seq — это «теряет»
+// первое значение; стандартный цикл `for Next { At }` отдаёт
+// k*(n-1) слияний. Бенчмарк ltree обрезан до того же числа.
+type seq struct {
+	cur  int
+	rest []int
+}
 
-func (s *seq) At() int { return (*s)[0] }
+func (s *seq) At() int { return s.cur }
 func (s *seq) Next() bool {
-	if len(*s) <= 1 {
-		*s = nil
+	if len(s.rest) == 0 {
 		return false
 	}
-	*s = (*s)[1:]
+	s.cur = s.rest[0]
+	s.rest = s.rest[1:]
 	return true
 }
 
 func makeSeqs(k, n int) []*seq {
 	seqs := make([]*seq, k)
 	for i := range seqs {
-		s := make(seq, n)
-		for j := range s {
-			s[j] = i*n + j
+		vals := make([]int, n)
+		for j := range vals {
+			vals[j] = i*n + j
 		}
-		seqs[i] = &s
+		seqs[i] = &seq{cur: vals[0], rest: vals[1:]}
 	}
 	return seqs
 }
@@ -111,9 +171,9 @@ func makeSeqs(k, n int) []*seq {
 func cloneSeqs(src []*seq) []*seq {
 	dst := make([]*seq, len(src))
 	for i, s := range src {
-		c := make(seq, len(*s))
-		copy(c, *s)
-		dst[i] = &c
+		rest := make([]int, len(s.rest))
+		copy(rest, s.rest)
+		dst[i] = &seq{cur: s.cur, rest: rest}
 	}
 	return dst
 }

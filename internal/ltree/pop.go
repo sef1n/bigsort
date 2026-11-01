@@ -3,15 +3,16 @@ package ltree
 // Pop обновляет значение победителя
 // и путь от победителя до корня.
 // Если значение победителя невалидно,
-// возвращает winner = nil, ok = false
-func Pop(t *LoserTree) (winner *node, ok bool) {
+// возвращает cur = 0, ind = 0, ok = false
+func Pop(t *LoserTree) (cur int, ind int, ok bool) {
 	// По контракту слайс t.nodes != nil, len(t.nodes) != 0
 	// t.winner != nil
 	if t == nil || t.winner.ind < 0 {
 		return
 	}
 
-	winner = t.winner
+	winner := t.winner
+	prevWinner := *winner
 	origInd := t.winner.ind
 	t.Next(winner)
 
@@ -31,9 +32,5 @@ func Pop(t *LoserTree) (winner *node, ok bool) {
 		oppInd = levelPtr + indShifted
 	}
 	t.winner = winner
-
-	if t.winner.ind < 0 {
-		return nil, false
-	}
-	return winner, true
+	return prevWinner.cur, prevWinner.ind, true
 }

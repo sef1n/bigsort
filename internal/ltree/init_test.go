@@ -97,21 +97,18 @@ func TestInit(t *testing.T) {
 		},
 		{
 			// 3 листа + 1 pad.
-			// R1: battle(l0,l1)=(l1,l0), battle(l2,inf)=(l2,inf)
-			// R2: battle(l1,l2)=(l2,l1)
 			name:  "k=3 padded to 4",
 			inSeq: [][]int{{3}, {2}, {1}},
 			want: &LoserTree{
 				nodes: []*node{
-					rn(3, 0), rn(2, 1), rn(1, 2), inf(), // level 0
-					rn(3, 0), inf(), // level 1 losers
-					rn(2, 1), // level 2 loser
+					rn(3, 0), rn(2, 1), rn(1, 2), inf(),
+					rn(3, 0), inf(),
+					rn(2, 1),
 				},
 				winner: rn(1, 2),
 			},
 		},
 		{
-			// tie-break: на равенстве выигрывает левый (i).
 			name:  "k=3 equal vals",
 			inSeq: [][]int{{1}, {1}, {1}},
 			want: &LoserTree{
@@ -124,7 +121,6 @@ func TestInit(t *testing.T) {
 			},
 		},
 		{
-			// R1 losers: l0, l2; R2 loser: l1; winner: l3.
 			name:  "k=4",
 			inSeq: [][]int{{4}, {3}, {2}, {1}},
 			want: &LoserTree{
@@ -137,7 +133,6 @@ func TestInit(t *testing.T) {
 			},
 		},
 		{
-			// 7 листьев + 1 pad.
 			name: "k=7 padded to 8",
 			inSeq: [][]int{
 				{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7},
@@ -165,22 +160,23 @@ func TestInit(t *testing.T) {
 				winner: rn(5, 0),
 			},
 		},
+		{
+			// MaxInt — легитимное значение, не путается с sentinel-ом.
+			name:  "k=1 MaxInt as real value",
+			inSeq: [][]int{{math.MaxInt}},
+			want: &LoserTree{
+				nodes:  []*node{rn(math.MaxInt, 0)},
+				winner: rn(math.MaxInt, 0),
+			},
+		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, w := Init(test.inSeq)
+			got := Init(test.inSeq)
 			if !reflect.DeepEqual(snapshot(got), snapshot(test.want)) {
 				t.Errorf("Init() tree mismatch\n got: %+v\nwant: %+v",
 					snapshot(got), snapshot(test.want))
-			}
-
-			var wantWinner *node
-			if test.want != nil {
-				wantWinner = test.want.winner
-			}
-			if !reflect.DeepEqual(w, wantWinner) {
-				t.Errorf("Init() winner mismatch\n got: %+v\nwant: %+v", w, wantWinner)
 			}
 		})
 	}
