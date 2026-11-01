@@ -1,9 +1,5 @@
 package ltree
 
-import (
-	"math"
-)
-
 // Pop обновляет значение победителя
 // и путь от победителя до корня.
 // Если значение победителя невалидно,
@@ -36,7 +32,7 @@ func Pop(t *LoserTree) (winner *node, ok bool) {
 	}
 	t.winner = winner
 
-	if t.winner.cur == math.MaxInt {
+	if t.winner.ind < 0 {
 		return nil, false
 	}
 	return winner, true
