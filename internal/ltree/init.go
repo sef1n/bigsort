@@ -27,6 +27,7 @@ func initStruct(leafs [][]int) *LoserTree {
 	}
 
 	lt := LoserTree{
+		leafs: leafs,
 		nodes: make([]*node, 0, extendedLeafs*2),
 		// Все inf ссылаются на одну ноду
 		arena: make([]node, 0, len(leafs)+1),
@@ -41,19 +42,16 @@ func initStruct(leafs [][]int) *LoserTree {
 		if v == nil || len(v) == 0 {
 			continue
 		}
-		lt.arena = append(lt.arena, node{})
-		n := &lt.arena[len(lt.arena)-1]
-		n.val, n.cur, n.ind = v[1:], v[0], i
-		lt.nodes = append(lt.nodes, n)
+		lt.arena = append(lt.arena, node{cur: v[0], ind: i})
+		leafs[i] = leafs[i][1:]
+
+		lt.nodes = append(lt.nodes, &lt.arena[len(lt.arena)-1])
 	}
 
 	// Дополняем уровень +inf значениями
 	// Создаем ноду, на которую сслыаются
-	// все заведомо проигравшие
-	if len(lt.nodes) < extendedLeafs {
-		lt.arena = append(lt.arena, node{cur: math.MaxInt, ind: -1})
-	}
-
+	// заглушки
+	lt.arena = append(lt.arena, node{cur: math.MaxInt, ind: -1})
 	for len(lt.nodes) < extendedLeafs {
 		lt.nodes = append(lt.nodes, &lt.arena[len(lt.arena)-1])
 	}
@@ -84,8 +82,6 @@ func holdTournament(lt *LoserTree) {
 func round(rouneders []*node, winners *[]*node, losers *[]*node) {
 	for i, j := 0, 1; j < len(rouneders); i, j = i+2, j+2 {
 		winner, loser := battle(rouneders[i], rouneders[j])
-
-		// fmt.Printf("Winner: %v; Loser: %v\n", *winner, *loser)
 
 		*winners = append(*winners, winner)
 		*losers = append(*losers, loser)

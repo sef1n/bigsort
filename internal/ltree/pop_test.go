@@ -1,9 +1,6 @@
 package ltree
 
-import (
-	"slices"
-	"testing"
-)
+import "testing"
 
 type popResult struct {
 	node *node
@@ -16,14 +13,13 @@ type popTest struct {
 	wantPopped []popResult
 }
 
-func TestPopOnGeneratedTree(t *testing.T) {
+func TestPop(t *testing.T) {
 	initT := func(i [][]int) *LoserTree {
-		t, _ := Init(i)
-		return t
+		tr, _ := Init(i)
+		return tr
 	}
-
-	popT := func(t *LoserTree) popResult {
-		v, ok := Pop(t)
+	popT := func(tr *LoserTree) popResult {
+		v, ok := Pop(tr)
 		return popResult{node: v, ok: ok}
 	}
 
@@ -39,10 +35,11 @@ func TestPopOnGeneratedTree(t *testing.T) {
 			wantPopped: []popResult{{ok: false}},
 		},
 		{
+			// Init съедает первый элемент; Pop возвращает уже следующее значение.
 			name: "k=1 two elements",
 			tree: initT([][]int{{1, 2}}),
 			wantPopped: []popResult{
-				{node: &node{val: []int{}, cur: 2, ind: 0}, ok: true},
+				{node: &node{cur: 2, ind: 0}, ok: true},
 				{ok: false},
 			},
 		},
@@ -50,9 +47,9 @@ func TestPopOnGeneratedTree(t *testing.T) {
 			name: "k=2 merge",
 			tree: initT([][]int{{1, 2}, {3, 4}}),
 			wantPopped: []popResult{
-				{node: &node{val: []int{}, cur: 2, ind: 0}, ok: true},
-				{node: &node{val: []int{4}, cur: 3, ind: 1}, ok: true},
-				{node: &node{val: []int{}, cur: 4, ind: 1}, ok: true},
+				{node: &node{cur: 2, ind: 0}, ok: true},
+				{node: &node{cur: 3, ind: 1}, ok: true},
+				{node: &node{cur: 4, ind: 1}, ok: true},
 				{ok: false},
 			},
 		},
@@ -60,9 +57,9 @@ func TestPopOnGeneratedTree(t *testing.T) {
 			name: "k=2 unbalanced",
 			tree: initT([][]int{{1}, {2, 3, 4}}),
 			wantPopped: []popResult{
-				{node: &node{val: []int{3, 4}, cur: 2, ind: 1}, ok: true},
-				{node: &node{val: []int{4}, cur: 3, ind: 1}, ok: true},
-				{node: &node{val: []int{}, cur: 4, ind: 1}, ok: true},
+				{node: &node{cur: 2, ind: 1}, ok: true},
+				{node: &node{cur: 3, ind: 1}, ok: true},
+				{node: &node{cur: 4, ind: 1}, ok: true},
 				{ok: false},
 			},
 		},
@@ -70,23 +67,22 @@ func TestPopOnGeneratedTree(t *testing.T) {
 			name: "k=3 padded",
 			tree: initT([][]int{{1, 2}, {3, 4}, {5, 6}}),
 			wantPopped: []popResult{
-				{node: &node{val: []int{}, cur: 2, ind: 0}, ok: true},
-				{node: &node{val: []int{4}, cur: 3, ind: 1}, ok: true},
-				{node: &node{val: []int{}, cur: 4, ind: 1}, ok: true},
-				{node: &node{val: []int{6}, cur: 5, ind: 2}, ok: true},
-				{node: &node{val: []int{}, cur: 6, ind: 2}, ok: true},
+				{node: &node{cur: 2, ind: 0}, ok: true},
+				{node: &node{cur: 3, ind: 1}, ok: true},
+				{node: &node{cur: 4, ind: 1}, ok: true},
+				{node: &node{cur: 5, ind: 2}, ok: true},
+				{node: &node{cur: 6, ind: 2}, ok: true},
 				{ok: false},
 			},
 		},
 		{
+			// tie-break: на равенстве выигрывает левый (i).
 			name: "k=4 all equal",
 			tree: initT([][]int{{5}, {5}, {5}, {5}}),
 			wantPopped: []popResult{
-				// tie-break: winner at each battle is the left i.
-				// After first Pop, leaf 0 advances to nil, leaf 1 becomes champ.
-				{node: &node{val: []int{}, cur: 5, ind: 1}, ok: true},
-				{node: &node{val: []int{}, cur: 5, ind: 2}, ok: true},
-				{node: &node{val: []int{}, cur: 5, ind: 3}, ok: true},
+				{node: &node{cur: 5, ind: 1}, ok: true},
+				{node: &node{cur: 5, ind: 2}, ok: true},
+				{node: &node{cur: 5, ind: 3}, ok: true},
 				{ok: false},
 			},
 		},
@@ -99,20 +95,17 @@ func TestPopOnGeneratedTree(t *testing.T) {
 				if got.ok != want.ok {
 					t.Fatalf("pop[%d] ok = %v, want %v", i, got.ok, want.ok)
 				}
-
 				if !got.ok {
 					continue
 				}
-
 				if got.node == nil {
 					t.Fatalf("pop[%d] node = nil, want non-nil", i)
 				}
 				if want.node == nil {
 					t.Fatalf("pop[%d] want.node = nil but ok=true", i)
 				}
-
-				if !slices.Equal(got.node.val, want.node.val) {
-					t.Errorf("pop[%d] val = %v, want %v", i, got.node.val, want.node.val)
+				if got.node.cur != want.node.cur {
+					t.Errorf("pop[%d] cur = %v, want %v", i, got.node.cur, want.node.cur)
 				}
 				if got.node.ind != want.node.ind {
 					t.Errorf("pop[%d] ind = %v, want %v", i, got.node.ind, want.node.ind)

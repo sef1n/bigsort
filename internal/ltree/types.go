@@ -16,8 +16,9 @@ import "math"
 
 // node узел с значением и его индексом на нижнем уровне
 type node struct {
-	val []int
+	// Значение для сравнения
 	cur int
+	// Индекс листа в t.leafs
 	ind int
 }
 
@@ -25,6 +26,10 @@ type node struct {
 type LoserTree struct {
 	// Само дерево
 	nodes []*node
+
+	// Листья
+	leafs [][]int
+
 	// arena - арена для нод
 	// все аллоцируются в одно место
 	arena []node
@@ -32,16 +37,17 @@ type LoserTree struct {
 	winner *node
 }
 
-// Next возвращает следующее значение в слайсе.
-// Если данные закончились, устанавливает
+// Next обновляет значения переданной ноды.
+// Если данные в листе закончились, устанавливает
 // {val: nil, cur: MaxInt, ind: -1}
-func (n *node) Next() {
-	if len(n.val) == 0 {
-		n.val = nil
+func (t *LoserTree) Next(n *node) {
+	valPtr := &t.leafs[n.ind]
+	val := *valPtr
+	if len(val) == 0 {
 		n.cur = math.MaxInt
 		n.ind = -1
 		return
 	}
-	n.cur = n.val[0]
-	n.val = n.val[1:]
+	n.cur = val[0]
+	*valPtr = (*valPtr)[1:]
 }

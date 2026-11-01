@@ -1,9 +1,13 @@
 package ltree
 
+import (
+	"math"
+)
+
 // Pop обновляет значение победителя
 // и путь от победителя до корня.
 // Если значение победителя невалидно,
-// возвращает ok = false
+// возвращает winner = nil, ok = false
 func Pop(t *LoserTree) (winner *node, ok bool) {
 	// По контракту слайс t.nodes != nil, len(t.nodes) != 0
 	// t.winner != nil
@@ -12,8 +16,8 @@ func Pop(t *LoserTree) (winner *node, ok bool) {
 	}
 
 	winner = t.winner
-	origInd := winner.ind
-	winner.Next()
+	origInd := t.winner.ind
+	t.Next(winner)
 
 	levelPtr := (len(t.nodes) + 1) / 2
 	levelSize := levelPtr >> 1
@@ -32,7 +36,7 @@ func Pop(t *LoserTree) (winner *node, ok bool) {
 	}
 	t.winner = winner
 
-	if t.winner.ind < 0 {
+	if t.winner.cur == math.MaxInt {
 		return nil, false
 	}
 	return winner, true

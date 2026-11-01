@@ -8,10 +8,7 @@ import (
 // Debug вывод
 
 func (n node) String() string {
-	if n.val == nil {
-		return fmt.Sprintf("(<nil>,%v,%v)", n.cur, n.ind)
-	}
-	return fmt.Sprintf("(%v,%v,%v)", n.val, n.cur, n.ind)
+	return fmt.Sprintf("(%v,%v)", n.cur, n.ind)
 }
 
 func (t LoserTree) String() string {
