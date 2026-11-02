@@ -35,22 +35,33 @@ func TestBenchCountsMatch(t *testing.T) {
 		t.Run(fmt.Sprintf("k=%d,n=%d", tc.k, tc.n), func(t *testing.T) {
 			want := tc.k * (tc.n - 1)
 
-			// ltree: ровно want pop'ов.
-			leafs := makeLeafs(tc.k, tc.n)
-			tree := ltree.Init(leafs)
+			seqs := makeLeafs(tc.k, tc.n)
+			initial := make([]int, tc.k)
+			rest := make([][]int, tc.k)
+			for i := range seqs {
+				initial[i] = seqs[i][0]
+				rest[i] = seqs[i][1:]
+			}
+			tree := ltree.Init(initial)
 			lc := 0
 			for lc < want {
-				if _, _, ok := tree.Pop(); !ok {
+				_, ind, ok := tree.Peek()
+				if !ok {
 					break
 				}
+				var newval int
+				var alive bool
+				if len(rest[ind]) > 0 {
+					newval = rest[ind][0]
+					rest[ind] = rest[ind][1:]
+					alive = true
+				}
+				tree.Pop(newval, alive)
 				lc++
 			}
 
-			// go-loser: стандартный цикл.
 			gc := goLoserLoopCount(tc.k, tc.n)
-
 			t.Logf("go-loser: %d, ltree: %d, want: %d", gc, lc, want)
-
 			if lc != want {
 				t.Errorf("ltree did %d pops, want %d", lc, want)
 			}
@@ -66,8 +77,6 @@ func BenchmarkLtreePop(b *testing.B) {
 		for _, n := range []int{100, 1000} {
 			b.Run(fmt.Sprintf("k=%d,n=%d", k, n), func(b *testing.B) {
 				template := makeLeafs(k, n)
-				// go-loser's standard loop does exactly k*(n-1) merge steps
-				// (loses first value of each seq). Match it.
 				iters := k * (n - 1)
 
 				b.ReportAllocs()
@@ -75,13 +84,24 @@ func BenchmarkLtreePop(b *testing.B) {
 				for i := 0; i < b.N; i++ {
 					b.StopTimer()
 					leafs := cloneLeafs(template)
-					tree := ltree.Init(leafs)
+					initial := make([]int, k)
+					for j := range leafs {
+						initial[j] = leafs[j][0]
+						leafs[j] = leafs[j][1:]
+					}
+					tree := ltree.Init(initial)
 					b.StartTimer()
 
-					for j := 0; j < iters; j++ {
-						if _, _, ok := tree.Pop(); !ok {
-							break
+					_, ind, ok := tree.Peek()
+					for j := 0; j < iters && ok; j++ {
+						var newval int
+						var alive bool
+						if len(leafs[ind]) > 0 {
+							newval = leafs[ind][0]
+							leafs[ind] = leafs[ind][1:]
+							alive = true
 						}
+						ind, ok = tree.Pop(newval, alive)
 					}
 				}
 			})

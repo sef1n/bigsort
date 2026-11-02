@@ -6,177 +6,97 @@ import (
 	"testing"
 )
 
-// snapshot возвращает копию дерева, у которой обнулены поля,
-// не относящиеся к логическому состоянию.
-func snapshot(t *LoserTree) *LoserTree {
-	if t == nil {
-		return nil
-	}
-	cp := *t
-	cp.arena = nil
-	cp.leafs = nil // мутируется Init, в Init-тесте не сравниваем
-	return &cp
-}
-
-// inf — sentinel-узел: значение = +∞, ind = -1.
-func inf() *node { return &node{cur: math.MaxInt, ind: -1} }
-
-// rn — обычный (значащий) узел.
-func rn(cur, ind int) *node { return &node{cur: cur, ind: ind} }
-
-type initTest struct {
-	name  string
-	inSeq [][]int
-	want  *LoserTree
-}
-
 func TestInit(t *testing.T) {
-	tests := []initTest{
-		// Пустые входные данные.
-		{name: "nil input", inSeq: nil, want: nil},
-		{name: "empty slice", inSeq: [][]int{}, want: nil},
+	inf := func() leaf { return leaf{v: math.MaxInt, alive: false} }
+	rn := func(v int) leaf { return leaf{v: v, alive: true} }
 
-		// Все листья незначащие → всё дерево из sentinel-ов.
-		{
-			name:  "k=1 nil leaf",
-			inSeq: [][]int{nil},
-			want: &LoserTree{
-				nodes:  []*node{inf()},
-				winner: inf(),
-			},
-		},
-		{
-			name:  "k=3 all nil",
-			inSeq: [][]int{nil, nil, nil},
-			want: &LoserTree{
-				nodes:  []*node{inf(), inf(), inf(), inf(), inf(), inf(), inf()},
-				winner: inf(),
-			},
-		},
-		{
-			name:  "k=1 empty leaf",
-			inSeq: [][]int{{}},
-			want: &LoserTree{
-				nodes:  []*node{inf()},
-				winner: inf(),
-			},
-		},
-		{
-			name:  "k=3 all empty leafs",
-			inSeq: [][]int{{}, {}, {}},
-			want: &LoserTree{
-				nodes:  []*node{inf(), inf(), inf(), inf(), inf(), inf(), inf()},
-				winner: inf(),
-			},
-		},
+	tests := []struct {
+		name string
+		in   []int
+		want *LoserTree
+	}{
+		{name: "nil input", in: nil, want: nil},
+		{name: "empty slice", in: []int{}, want: nil},
 
-		// Валидные данные.
 		{
-			name:  "k=1 single leaf",
-			inSeq: [][]int{{42}},
+			name: "k=1 single leaf",
+			in:   []int{42},
 			want: &LoserTree{
-				nodes:  []*node{rn(42, 0)},
-				winner: rn(42, 0),
+				leafs:  []leaf{rn(42)},
+				nodes:  []leafInd{0},
+				winner: 0,
 			},
 		},
 		{
-			name:  "k=2 sorted",
-			inSeq: [][]int{{1}, {2}},
+			name: "k=2 sorted",
+			in:   []int{1, 2},
 			want: &LoserTree{
-				nodes:  []*node{rn(1, 0), rn(2, 1), rn(2, 1)},
-				winner: rn(1, 0),
+				leafs:  []leaf{rn(1), rn(2)},
+				nodes:  []leafInd{0, 1, 1},
+				winner: 0,
 			},
 		},
 		{
-			name:  "k=2 reversed",
-			inSeq: [][]int{{2}, {1}},
+			name: "k=2 reversed",
+			in:   []int{2, 1},
 			want: &LoserTree{
-				nodes:  []*node{rn(2, 0), rn(1, 1), rn(2, 0)},
-				winner: rn(1, 1),
+				leafs:  []leaf{rn(2), rn(1)},
+				nodes:  []leafInd{0, 1, 0},
+				winner: 1,
 			},
 		},
 		{
-			// 3 листа + 1 pad.
-			name:  "k=3 padded to 4",
-			inSeq: [][]int{{3}, {2}, {1}},
+			name: "k=3 padded to 4",
+			in:   []int{3, 2, 1},
 			want: &LoserTree{
-				nodes: []*node{
-					rn(3, 0), rn(2, 1), rn(1, 2), inf(),
-					rn(3, 0), inf(),
-					rn(2, 1),
-				},
-				winner: rn(1, 2),
+				leafs:  []leaf{rn(3), rn(2), rn(1), inf()},
+				nodes:  []leafInd{0, 1, 2, 3, 0, 3, 1},
+				winner: 2,
 			},
 		},
 		{
-			name:  "k=3 equal vals",
-			inSeq: [][]int{{1}, {1}, {1}},
+			name: "k=3 equal vals",
+			in:   []int{1, 1, 1},
 			want: &LoserTree{
-				nodes: []*node{
-					rn(1, 0), rn(1, 1), rn(1, 2), inf(),
-					rn(1, 1), inf(),
-					rn(1, 2),
-				},
-				winner: rn(1, 0),
+				leafs:  []leaf{rn(1), rn(1), rn(1), inf()},
+				nodes:  []leafInd{0, 1, 2, 3, 1, 3, 2},
+				winner: 0,
 			},
 		},
 		{
-			name:  "k=4",
-			inSeq: [][]int{{4}, {3}, {2}, {1}},
+			name: "k=4 descending",
+			in:   []int{4, 3, 2, 1},
 			want: &LoserTree{
-				nodes: []*node{
-					rn(4, 0), rn(3, 1), rn(2, 2), rn(1, 3),
-					rn(4, 0), rn(2, 2),
-					rn(3, 1),
-				},
-				winner: rn(1, 3),
+				leafs:  []leaf{rn(4), rn(3), rn(2), rn(1)},
+				nodes:  []leafInd{0, 1, 2, 3, 0, 2, 1},
+				winner: 3,
 			},
 		},
 		{
-			name: "k=7 padded to 8",
-			inSeq: [][]int{
-				{1, 1}, {2, 2}, {3, 3}, {4, 4}, {5, 5}, {6, 6}, {7},
-			},
+			name: "k=4 all equal, stable tie-break",
+			in:   []int{5, 5, 5, 5},
 			want: &LoserTree{
-				nodes: []*node{
-					rn(1, 0), rn(2, 1), rn(3, 2), rn(4, 3),
-					rn(5, 4), rn(6, 5), rn(7, 6), inf(),
-					rn(2, 1), rn(4, 3), rn(6, 5), inf(),
-					rn(3, 2), rn(7, 6),
-					rn(5, 4),
-				},
-				winner: rn(1, 0),
+				leafs:  []leaf{rn(5), rn(5), rn(5), rn(5)},
+				nodes:  []leafInd{0, 1, 2, 3, 1, 3, 2},
+				winner: 0,
 			},
 		},
 		{
-			name:  "k=4 all equal, stable tie-break",
-			inSeq: [][]int{{5}, {5}, {5}, {5}},
+			name: "MaxInt is a valid value",
+			in:   []int{math.MaxInt},
 			want: &LoserTree{
-				nodes: []*node{
-					rn(5, 0), rn(5, 1), rn(5, 2), rn(5, 3),
-					rn(5, 1), rn(5, 3),
-					rn(5, 2),
-				},
-				winner: rn(5, 0),
-			},
-		},
-		{
-			// MaxInt — легитимное значение, не путается с sentinel-ом.
-			name:  "k=1 MaxInt as real value",
-			inSeq: [][]int{{math.MaxInt}},
-			want: &LoserTree{
-				nodes:  []*node{rn(math.MaxInt, 0)},
-				winner: rn(math.MaxInt, 0),
+				leafs:  []leaf{rn(math.MaxInt)},
+				nodes:  []leafInd{0},
+				winner: 0,
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got := Init(test.inSeq)
-			if !reflect.DeepEqual(snapshot(got), snapshot(test.want)) {
-				t.Errorf("Init() tree mismatch\n got: %+v\nwant: %+v",
-					snapshot(got), snapshot(test.want))
+			got := Init(test.in)
+			if !reflect.DeepEqual(got, test.want) {
+				t.Errorf("Init() mismatch\n got: %+v\nwant: %+v", got, test.want)
 			}
 		})
 	}

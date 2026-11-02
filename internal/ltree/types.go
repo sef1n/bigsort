@@ -1,7 +1,5 @@
 package ltree
 
-import "math"
-
 // type Luser interface {
 // 	// Следующее значение
 // 	// Обновляет возвращаемое Val значение
@@ -14,40 +12,26 @@ import "math"
 // 	CompareWith(i Luser) (less Luser, bigger Luser)
 // }
 
-// node узел с значением и его индексом на нижнем уровне
-type node struct {
-	// Значение для сравнения
-	cur int
-	// Индекс листа в t.leafs
-	ind int
+type leaf struct {
+	v     int
+	alive bool
 }
+type leafInd = int
 
 // LoserTree дерево
 type LoserTree struct {
-	// Само дерево
-	nodes []*node
+	// Дерево из индексов листьев
+	nodes []leafInd
 
 	// Листья
-	leafs [][]int
+	leafs []leaf
 
-	// arena - арена для нод
-	// все аллоцируются в одно место
-	arena []node
-
-	winner *node
-}
-
-// Next обновляет значения переданной ноды.
-// Если данные в листе закончились, устанавливает
-// {val: nil, cur: MaxInt, ind: -1}
-func (t *LoserTree) Next(n *node) {
-	valPtr := &t.leafs[n.ind]
-	val := *valPtr
-	if len(val) == 0 {
-		n.cur = math.MaxInt
-		n.ind = -1
-		return
-	}
-	n.cur = val[0]
-	*valPtr = (*valPtr)[1:]
+	// TODO: можно не хранить winner?
+	winner leafInd
+	// Флаг исчерпания значений
+	// устанавливается после получения inf
+	// в Pop
+	// WARN: документация поведения при Update done дерева
+	// или функция RECOVER?
+	done bool
 }

@@ -5,146 +5,142 @@ import (
 	"testing"
 )
 
-type popResult struct {
+type popStep struct {
 	cur int
 	ind int
 	ok  bool
 }
 
-type popTest struct {
-	name       string
-	tree       *LoserTree
-	wantPopped []popResult
-}
-
 func TestPop(t *testing.T) {
-	initT := func(i [][]int) *LoserTree { return Init(i) }
-	popT := func(tr *LoserTree) popResult {
-		cur, ind, ok := tr.Pop()
-		return popResult{cur: cur, ind: ind, ok: ok}
-	}
-
-	tests := []popTest{
+	// streams — входные потоки; первый элемент идёт в Init, остальные
+	// скармливаются через Pop.
+	tests := []struct {
+		name    string
+		streams [][]int
+		want    []popStep
+	}{
 		{
-			name:       "nil tree",
-			tree:       nil,
-			wantPopped: []popResult{{ok: false}},
-		},
-		{
-			name:       "nil input",
-			tree:       initT(nil),
-			wantPopped: []popResult{{ok: false}},
-		},
-		{
-			// Init потребляет первый элемент листа, но Pop теперь
-			// возвращает и его тоже. Один элемент → один Pop.
-			name: "k=1 single element",
-			tree: initT([][]int{{42}}),
-			wantPopped: []popResult{
-				{cur: 42, ind: 0, ok: true},
-				{ok: false},
+			name:    "k=1 single element",
+			streams: [][]int{{42}},
+			want: []popStep{
+				{42, 0, true},
+				{0, 0, false},
 			},
 		},
 		{
-			name: "k=1 two elements",
-			tree: initT([][]int{{1, 2}}),
-			wantPopped: []popResult{
-				{cur: 1, ind: 0, ok: true},
-				{cur: 2, ind: 0, ok: true},
-				{ok: false},
+			name:    "k=1 two elements",
+			streams: [][]int{{1, 2}},
+			want: []popStep{
+				{1, 0, true},
+				{2, 0, true},
+				{0, 0, false},
 			},
 		},
 		{
-			name: "k=2 merge",
-			tree: initT([][]int{{1, 2}, {3, 4}}),
-			wantPopped: []popResult{
-				{cur: 1, ind: 0, ok: true},
-				{cur: 2, ind: 0, ok: true},
-				{cur: 3, ind: 1, ok: true},
-				{cur: 4, ind: 1, ok: true},
-				{ok: false},
+			name:    "k=2 merge",
+			streams: [][]int{{1, 2}, {3, 4}},
+			want: []popStep{
+				{1, 0, true},
+				{2, 0, true},
+				{3, 1, true},
+				{4, 1, true},
+				{0, 0, false},
 			},
 		},
 		{
-			name: "k=2 unbalanced",
-			tree: initT([][]int{{1}, {2, 3, 4}}),
-			wantPopped: []popResult{
-				{cur: 1, ind: 0, ok: true},
-				{cur: 2, ind: 1, ok: true},
-				{cur: 3, ind: 1, ok: true},
-				{cur: 4, ind: 1, ok: true},
-				{ok: false},
+			name:    "k=2 unbalanced",
+			streams: [][]int{{1}, {2, 3, 4}},
+			want: []popStep{
+				{1, 0, true},
+				{2, 1, true},
+				{3, 1, true},
+				{4, 1, true},
+				{0, 0, false},
 			},
 		},
 		{
-			name: "k=3 padded",
-			tree: initT([][]int{{1, 2}, {3, 4}, {5, 6}}),
-			wantPopped: []popResult{
-				{cur: 1, ind: 0, ok: true},
-				{cur: 2, ind: 0, ok: true},
-				{cur: 3, ind: 1, ok: true},
-				{cur: 4, ind: 1, ok: true},
-				{cur: 5, ind: 2, ok: true},
-				{cur: 6, ind: 2, ok: true},
-				{ok: false},
+			name:    "k=3 padded",
+			streams: [][]int{{1, 2}, {3, 4}, {5, 6}},
+			want: []popStep{
+				{1, 0, true},
+				{2, 0, true},
+				{3, 1, true},
+				{4, 1, true},
+				{5, 2, true},
+				{6, 2, true},
+				{0, 0, false},
 			},
 		},
 		{
-			// tie-break: на равенстве выигрывает левый (i).
-			name: "k=4 all equal",
-			tree: initT([][]int{{5}, {5}, {5}, {5}}),
-			wantPopped: []popResult{
-				{cur: 5, ind: 0, ok: true},
-				{cur: 5, ind: 1, ok: true},
-				{cur: 5, ind: 2, ok: true},
-				{cur: 5, ind: 3, ok: true},
-				{ok: false},
+			name:    "k=4 all equal",
+			streams: [][]int{{5}, {5}, {5}, {5}},
+			want: []popStep{
+				{5, 0, true},
+				{5, 1, true},
+				{5, 2, true},
+				{5, 3, true},
+				{0, 0, false},
 			},
 		},
 		{
-			// MaxInt не должен теряться: он не sentinel, sentinel — ind == -1.
-			name: "MaxInt is a valid value",
-			tree: initT([][]int{{math.MaxInt, math.MaxInt}}),
-			wantPopped: []popResult{
-				{cur: math.MaxInt, ind: 0, ok: true},
-				{cur: math.MaxInt, ind: 0, ok: true},
-				{ok: false},
+			name:    "MaxInt is a valid value",
+			streams: [][]int{{math.MaxInt, math.MaxInt}},
+			want: []popStep{
+				{math.MaxInt, 0, true},
+				{math.MaxInt, 0, true},
+				{0, 0, false},
 			},
 		},
 		{
-			// MaxInt соседствует с обычными значениями и сортируется правильно.
-			name: "MaxInt among regular values",
-			tree: initT([][]int{{math.MaxInt}, {1}, {2}}),
-			wantPopped: []popResult{
-				{cur: 1, ind: 1, ok: true},
-				{cur: 2, ind: 2, ok: true},
-				{cur: math.MaxInt, ind: 0, ok: true},
-				{ok: false},
+			name:    "MaxInt among regular values",
+			streams: [][]int{{math.MaxInt}, {1}, {2}},
+			want: []popStep{
+				{1, 1, true},
+				{2, 2, true},
+				{math.MaxInt, 0, true},
+				{0, 0, false},
 			},
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			for i, want := range test.wantPopped {
-				got := popT(test.tree)
-				if got.ok != want.ok {
-					t.Fatalf("pop[%d] ok = %v, want %v", i, got.ok, want.ok)
+			initial := make([]int, len(test.streams))
+			rest := make([][]int, len(test.streams))
+			for i, s := range test.streams {
+				initial[i] = s[0]
+				rest[i] = s[1:]
+			}
+			tree := Init(initial)
+
+			for i, want := range test.want {
+				cur, ind, ok := tree.Peek()
+				if ok != want.ok {
+					t.Fatalf("step %d: ok=%v want %v", i, ok, want.ok)
 				}
-				if !got.ok {
+				if !ok {
 					continue
 				}
-				if got.cur != want.cur {
-					t.Errorf("pop[%d] cur = %v, want %v", i, got.cur, want.cur)
+				if cur != want.cur || ind != want.ind {
+					t.Errorf("step %d: got (%d,%d) want (%d,%d)",
+						i, cur, ind, want.cur, want.ind)
 				}
-				if got.ind != want.ind {
-					t.Errorf("pop[%d] ind = %v, want %v", i, got.ind, want.ind)
+				var newval int
+				var alive bool
+				if len(rest[ind]) > 0 {
+					newval = rest[ind][0]
+					rest[ind] = rest[ind][1:]
+					alive = true
 				}
-			}
-
-			if got := popT(test.tree); got.ok {
-				t.Errorf("returned ok on ended tree")
+				tree.Pop(newval, alive)
 			}
 		})
 	}
+
+	t.Run("nil tree", func(t *testing.T) {
+		var tree *LoserTree
+		if _, _, ok := tree.Peek(); ok {
+			t.Error("nil tree should not peek ok")
+		}
+	})
 }

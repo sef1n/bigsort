@@ -5,23 +5,15 @@ import (
 	"strings"
 )
 
-// Debug вывод
-
-func (n node) String() string {
-	return fmt.Sprintf("(cur:%v,ind%v)", n.cur, n.ind)
-}
-
 func (t LoserTree) String() string {
 	var sb strings.Builder
+	fmt.Fprint(&sb, "{\nLeafs: {")
 
-	fmt.Fprint(&sb, "{Arena:{")
-	for i, node := range t.arena {
-		if i > 0 {
-			fmt.Fprint(&sb, ",")
-		}
-		fmt.Fprintf(&sb, "%v", node)
+	for i, l := range t.leafs {
+		fmt.Fprintf(&sb, "(%d,{%d,%v})", i, l.v, l.alive)
 	}
-	fmt.Fprint(&sb, "},\n{Nodes:{\nL#0 ")
+
+	fmt.Fprint(&sb, "};\nNodes: {\nL#0: ")
 
 	lvlLen := (len(t.nodes) + 1) / 2
 	lvlEnd := lvlLen
@@ -31,16 +23,12 @@ func (t LoserTree) String() string {
 			fmt.Fprint(&sb, ",")
 			if lvlEnd == i {
 				lvlN++
-				fmt.Fprintf(&sb, "\nL#%d ", lvlN)
+				fmt.Fprintf(&sb, "\nL#%d: ", lvlN)
 				lvlLen >>= 1
 				lvlEnd += lvlLen
 			}
 		}
-		if node == nil {
-			fmt.Fprint(&sb, "(<nil node>)")
-		} else {
-			fmt.Fprintf(&sb, "%v", node)
-		}
+		fmt.Fprintf(&sb, "%v", node)
 	}
 
 	fmt.Fprintf(&sb, "\n}\nWinner: %v}", t.winner)

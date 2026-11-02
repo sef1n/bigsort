@@ -1,12 +1,23 @@
 package ltree
 
-import "math"
+import (
+	"math"
+)
 
 // NOTE: листья, чьи значения == nil || len == 0,
 // не участвуют в "турнире" - они приравниваются к
 // nil (inf value).
+//
+// NOTE: leafs с (cap == len + 1) ускоряют инициализацию
+//
+// NOTE: можно удалить слайс t.leaf, но тогда усложнится battle
+//
+// TODO: функция создания слайса листев (для cap+1)
+//
+// NOTE: если хранить статус листа через другую структуру ноды,
+// то нужен указатель. Текущая реализация быстрее?
 
-func Init(leafs [][]int) *LoserTree {
+func Init(leafs []int) *LoserTree {
 	if leafs == nil || len(leafs) == 0 {
 		return nil
 	}
@@ -17,7 +28,7 @@ func Init(leafs [][]int) *LoserTree {
 	return lt
 }
 
-func initStruct(leafs [][]int) *LoserTree {
+func initStruct(leafs []int) *LoserTree {
 	// Вычисляем длину начального уровня
 	// вместе с +inf значениями
 	extendedLeafs := 1
@@ -26,33 +37,21 @@ func initStruct(leafs [][]int) *LoserTree {
 	}
 
 	lt := LoserTree{
-		leafs: leafs,
-		nodes: make([]*node, 0, extendedLeafs*2),
-		// Все inf ссылаются на одну ноду
-		arena: make([]node, 0, len(leafs)+1),
+		leafs: make([]leaf, extendedLeafs),
+		nodes: make([]leafInd, 0, extendedLeafs*2),
 	}
 
 	// Создаем значащие ноды
-	// Для создания не более одной nil-node в арене
-	for i, v := range leafs {
-		// Валидация листьев
-		// Пропускаем несравниваемые,
-		// их место займут node{val: nil}
-		if v == nil || len(v) == 0 {
-			continue
-		}
-		lt.arena = append(lt.arena, node{cur: v[0], ind: i})
-		leafs[i] = leafs[i][1:]
+	for i, val := range leafs {
+		lt.leafs[i].v = val
+		lt.leafs[i].alive = true
 
-		lt.nodes = append(lt.nodes, &lt.arena[len(lt.arena)-1])
+		lt.nodes = append(lt.nodes, i)
 	}
 
-	// Дополняем уровень +inf значениями
-	// Создаем ноду, на которую сслыаются
-	// заглушки
-	lt.arena = append(lt.arena, node{cur: math.MaxInt, ind: -1})
-	for len(lt.nodes) < extendedLeafs {
-		lt.nodes = append(lt.nodes, &lt.arena[len(lt.arena)-1])
+	for i := len(lt.nodes); len(lt.nodes) < extendedLeafs; i++ {
+		lt.leafs[i].v = math.MaxInt
+		lt.nodes = append(lt.nodes, i)
 	}
 	return &lt
 }
@@ -60,15 +59,20 @@ func initStruct(leafs [][]int) *LoserTree {
 // holdTournament зполняет уровни дерева, устанавливает победителя
 // Ожидает, что len(ult.nodes) == 1
 func holdTournament(lt *LoserTree) {
+	leafs := lt.leafs
 	rounders := lt.nodes
-	winners := make([]*node, 0, len(lt.nodes)/2)
+	winners := make([]leafInd, 0, len(lt.nodes)/2)
 
 	for len(rounders) > 1 {
-		round(rounders, &winners, &lt.nodes)
+		var p1, p2 leafInd
+		for i, j := 0, 1; j < len(rounders); i, j = i+2, j+2 {
+			p1, p2 = rounders[i], rounders[j]
+			winner, loser := battle(leafs[p1], leafs[p2], p1, p2)
 
-		// NOTE: можно использовать один слайс для чтения && записи
-		// т.к. append значения в winners после
-		// прочтения этого значения
+			winners = append(winners, winner)
+			lt.nodes = append(lt.nodes, loser)
+		}
+
 		rounders = winners
 		winners = winners[:0]
 	}
@@ -76,30 +80,19 @@ func holdTournament(lt *LoserTree) {
 	return
 }
 
-// round обрабатывает один уровень дерева.
-// Записывает победителей в winners, проигравших в losers
-func round(rouneders []*node, winners *[]*node, losers *[]*node) {
-	for i, j := 0, 1; j < len(rouneders); i, j = i+2, j+2 {
-		winner, loser := battle(rouneders[i], rouneders[j])
-
-		*winners = append(*winners, winner)
-		*losers = append(*losers, loser)
-	}
-}
-
 // battle сравнивает значения. Объявляет победителем меньшее значение
 // Значения с ind == -1 считаются бесконечно большими и могут проиграть
 // только таким же значениям.
 // Функция нестабильна при сортировке двух бесконечно больших значений -
 // первый параметр не обязательно будет победителем.
-func battle(i, j *node) (winner, loser *node) {
-	if j.cur < i.cur {
-		return j, i
+func battle(i, j leaf, ii, ji leafInd) (winner, loser leafInd) {
+	if j.v < i.v {
+		return ji, ii
 	}
 
-	if i.ind < 0 {
-		return j, i
+	if !i.alive {
+		return ji, ii
 	}
 
-	return i, j
+	return ii, ji
 }
