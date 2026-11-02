@@ -20,7 +20,7 @@ type popTest struct {
 func TestPop(t *testing.T) {
 	initT := func(i [][]int) *LoserTree { return Init(i) }
 	popT := func(tr *LoserTree) popResult {
-		cur, ind, ok := Pop(tr)
+		cur, ind, ok := tr.Pop()
 		return popResult{cur: cur, ind: ind, ok: ok}
 	}
 

@@ -4,7 +4,7 @@ package ltree
 // и путь от победителя до корня.
 // Если значение победителя невалидно,
 // возвращает cur = 0, ind = 0, ok = false
-func Pop(t *LoserTree) (cur int, ind int, ok bool) {
+func (t *LoserTree) Pop() (cur int, ind int, ok bool) {
 	// По контракту слайс t.nodes != nil, len(t.nodes) != 0
 	// t.winner != nil
 	if t == nil || t.winner.ind < 0 {
