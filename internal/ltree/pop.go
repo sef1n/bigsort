@@ -20,7 +20,7 @@ func (t *LoserTree) Peek() (val int, ind leafInd, ok bool) {
 func (t *LoserTree) Pop(newval int, alive bool) (ind leafInd, ok bool) {
 	// По контракту слайс t.nodes != nil, len(t.nodes) != 0
 	// t.winner != nil
-	if t == nil || t.done {
+	if t == nil {
 		return
 	}
 
@@ -55,7 +55,6 @@ func (t *LoserTree) Pop(newval int, alive bool) (ind leafInd, ok bool) {
 		oppInd = levelPtr + indShifted
 	}
 	if !leafs[winner].alive {
-		t.done = true
 		return
 	}
 	t.winner = winner

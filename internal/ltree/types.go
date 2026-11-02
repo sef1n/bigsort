@@ -28,10 +28,4 @@ type LoserTree struct {
 
 	// TODO: можно не хранить winner?
 	winner leafInd
-	// Флаг исчерпания значений
-	// устанавливается после получения inf
-	// в Pop
-	// WARN: документация поведения при Update done дерева
-	// или функция RECOVER?
-	done bool
 }
