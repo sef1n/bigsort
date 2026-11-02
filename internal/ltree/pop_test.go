@@ -136,11 +136,4 @@ func TestPop(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("nil tree", func(t *testing.T) {
-		var tree *LoserTree
-		if _, _, ok := tree.Peek(); ok {
-			t.Error("nil tree should not peek ok")
-		}
-	})
 }

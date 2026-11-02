@@ -3,9 +3,6 @@ package ltree
 import "math"
 
 func (t *LoserTree) Peek() (val int, ind leafInd, ok bool) {
-	if t == nil {
-		return
-	}
 	w := t.winner
 	if !t.leafs[w].alive {
 		return
@@ -18,12 +15,6 @@ func (t *LoserTree) Peek() (val int, ind leafInd, ok bool) {
 // Если значение победителя невалидно,
 // возвращает cur = 0, ind = 0, ok = false
 func (t *LoserTree) Pop(newval int, alive bool) (ind leafInd, ok bool) {
-	// По контракту слайс t.nodes != nil, len(t.nodes) != 0
-	// t.winner != nil
-	if t == nil {
-		return
-	}
-
 	winner := t.winner
 
 	leafs := t.leafs

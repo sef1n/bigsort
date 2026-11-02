@@ -26,6 +26,5 @@ type LoserTree struct {
 	// Листья
 	leafs []leaf
 
-	// TODO: можно не хранить winner?
 	winner leafInd
 }
