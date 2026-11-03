@@ -17,67 +17,57 @@ import (
 // NOTE: если хранить статус листа через другую структуру ноды,
 // то нужен указатель. Текущая реализация быстрее?
 
-func Init(leafs []int) *LoserTree {
-	if leafs == nil || len(leafs) == 0 {
+func Init(values []int) *LoserTree {
+	if values == nil || len(values) == 0 {
 		return nil
 	}
+	lt, ext := initiateStruct(values)
 
-	lt := initStruct(leafs)
-	holdTournament(lt)
+	leafs := lt.leafs
+	winners := make([]leafInd, ext*2)
+	copy(winners[ext:], lt.nodes[ext:])
+
+	for p := ext - 1; p >= 1; p-- {
+		i, j := winners[p*2], winners[p*2+1]
+		winner, loser := battle(leafs[i], leafs[j], i, j)
+
+		winners[p] = winner
+		lt.nodes[p] = loser
+	}
+	lt.winner = winners[1]
 
 	return lt
 }
 
-func initStruct(leafs []int) *LoserTree {
+func initiateStruct(values []int) (*LoserTree, int) {
 	// Вычисляем длину начального уровня
 	// вместе с +inf значениями
-	extendedLeafs := 1
-	for extendedLeafs < len(leafs) {
-		extendedLeafs <<= 1
+	ext := 1
+	for ext < len(values) {
+		ext <<= 1
 	}
 
 	lt := LoserTree{
-		leafs: make([]leaf, extendedLeafs),
-		nodes: make([]leafInd, 0, extendedLeafs*2),
+		leafs: make([]leaf, ext),
+		nodes: make([]leafInd, ext*2),
 	}
 
-	// Создаем значащие ноды
-	for i, val := range leafs {
+	// Переносим значения в lt.leafs
+	for i, val := range values {
 		lt.leafs[i].v = val
 		lt.leafs[i].alive = true
-
-		lt.nodes = append(lt.nodes, i)
 	}
 
-	for i := len(lt.nodes); len(lt.nodes) < extendedLeafs; i++ {
+	// Дополняем lt.leafs inf
+	for i := len(values); i < ext; i++ {
 		lt.leafs[i].v = math.MaxInt
-		lt.nodes = append(lt.nodes, i)
 	}
-	return &lt
-}
 
-// holdTournament зполняет уровни дерева, устанавливает победителя
-// Ожидает, что len(ult.nodes) == 1
-func holdTournament(lt *LoserTree) {
-	leafs := lt.leafs
-	rounders := lt.nodes
-	winners := make([]leafInd, 0, len(lt.nodes)/2)
-
-	for len(rounders) > 1 {
-		var p1, p2 leafInd
-		for i, j := 0, 1; j < len(rounders); i, j = i+2, j+2 {
-			p1, p2 = rounders[i], rounders[j]
-			winner, loser := battle(leafs[p1], leafs[p2], p1, p2)
-
-			winners = append(winners, winner)
-			lt.nodes = append(lt.nodes, loser)
-		}
-
-		rounders = winners
-		winners = winners[:0]
+	// Переносим индексы в дерево
+	for i := 0; i < ext; i++ {
+		lt.nodes[ext+i] = i
 	}
-	lt.winner = rounders[0]
-	return
+	return &lt, ext
 }
 
 // battle сравнивает значения. Объявляет победителем меньшее значение

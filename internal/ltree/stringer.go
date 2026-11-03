@@ -5,32 +5,35 @@ import (
 	"strings"
 )
 
+// String форматирует дерево. Уровни печатаются от корня (L#0) вниз.
+// nodes[0] не используется.
 func (t LoserTree) String() string {
 	var sb strings.Builder
 	fmt.Fprint(&sb, "{\nLeafs: {")
-
 	for i, l := range t.leafs {
-		fmt.Fprintf(&sb, "(%d,{%d,%v})", i, l.v, l.alive)
+		fmt.Fprintf(&sb, "(i:%d,{v:%d,valid:%v})", i, l.v, l.alive)
 	}
+	fmt.Fprint(&sb, "};\nNodes: {\n")
 
-	fmt.Fprint(&sb, "};\nNodes: {\nL#0: ")
-
-	lvlLen := (len(t.nodes) + 1) / 2
-	lvlEnd := lvlLen
-	lvlN := 0
-	for i, node := range t.nodes {
-		if i > 0 {
-			fmt.Fprint(&sb, ",")
-			if lvlEnd == i {
-				lvlN++
-				fmt.Fprintf(&sb, "\nL#%d: ", lvlN)
-				lvlLen >>= 1
-				lvlEnd += lvlLen
+	level := 0
+	levelStart := 1 // nodes[1] — начало уровня 0
+	for i := 1; i < len(t.nodes); i++ {
+		if i == levelStart {
+			if i > 1 {
+				fmt.Fprint(&sb, "\n")
 			}
+			fmt.Fprintf(&sb, "L#%d: ", level)
+			level++
+			levelStart <<= 1
+		} else {
+			fmt.Fprint(&sb, ",")
 		}
-		fmt.Fprintf(&sb, "%v", node)
+		fmt.Fprintf(&sb, "%v", t.nodes[i])
+	}
+	if len(t.nodes) > 1 {
+		fmt.Fprint(&sb, "\n")
 	}
 
-	fmt.Fprintf(&sb, "\n}\nWinner: %v}", t.winner)
+	fmt.Fprintf(&sb, "}\nWinner: %v}", t.winner)
 	return sb.String()
 }

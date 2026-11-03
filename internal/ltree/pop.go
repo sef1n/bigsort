@@ -1,6 +1,8 @@
 package ltree
 
-import "math"
+import (
+	"math"
+)
 
 func (t *LoserTree) Peek() (val int, ind leafInd, ok bool) {
 	w := t.winner
@@ -15,36 +17,22 @@ func (t *LoserTree) Peek() (val int, ind leafInd, ok bool) {
 // Если значение победителя невалидно,
 // возвращает cur = 0, ind = 0, ok = false
 func (t *LoserTree) Pop(newval int, alive bool) (ind leafInd, ok bool) {
-	winner := t.winner
-
 	leafs := t.leafs
+	winner := t.winner
 	nodes := t.nodes
 
-	levelPtr := (len(nodes) + 1) / 2
-	levelSize := levelPtr >> 1
-	indShifted := winner >> 1
-	oppInd := levelPtr + indShifted
-
-	// update после инициализации значений
 	if alive {
 		leafs[winner].v = newval
 	} else {
 		leafs[winner].alive = false
 		leafs[winner].v = math.MaxInt
+
+	}
+	for i := (winner + len(leafs)) >> 1; i > 0; i >>= 1 {
+		opp := nodes[i]
+		winner, nodes[i] = battle(leafs[winner], leafs[opp], winner, opp)
 	}
 
-	var opp leafInd
-	for oppInd < len(t.nodes) {
-		// battle
-		// Проигравший сразу записывается в дерево
-		opp = nodes[oppInd]
-		winner, nodes[oppInd] = battle(leafs[winner], leafs[opp], winner, opp)
-
-		levelPtr += levelSize
-		levelSize >>= 1
-		indShifted >>= 1
-		oppInd = levelPtr + indShifted
-	}
 	if !leafs[winner].alive {
 		return
 	}

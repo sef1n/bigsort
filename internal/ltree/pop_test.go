@@ -12,8 +12,6 @@ type popStep struct {
 }
 
 func TestPop(t *testing.T) {
-	// streams — входные потоки; первый элемент идёт в Init, остальные
-	// скармливаются через Pop.
 	tests := []struct {
 		name    string
 		streams [][]int
@@ -68,6 +66,25 @@ func TestPop(t *testing.T) {
 				{4, 1, true},
 				{5, 2, true},
 				{6, 2, true},
+				{0, 0, false},
+			},
+		},
+		{
+			name: "k=5 with three levels",
+			streams: [][]int{
+				{1, 10}, {2, 20}, {3, 30}, {4, 40}, {5, 50},
+			},
+			want: []popStep{
+				{1, 0, true},
+				{2, 1, true},
+				{3, 2, true},
+				{4, 3, true},
+				{5, 4, true},
+				{10, 0, true},
+				{20, 1, true},
+				{30, 2, true},
+				{40, 3, true},
+				{50, 4, true},
 				{0, 0, false},
 			},
 		},
