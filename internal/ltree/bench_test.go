@@ -49,14 +49,13 @@ func TestBenchCountsMatch(t *testing.T) {
 				if !ok {
 					break
 				}
-				var newval int
-				var alive bool
 				if len(rest[ind]) > 0 {
-					newval = rest[ind][0]
+					tree.Upd(ind, rest[ind][0])
 					rest[ind] = rest[ind][1:]
-					alive = true
+				} else {
+					tree.Kill(ind)
 				}
-				tree.Pop(newval, alive)
+				tree.Pop()
 				lc++
 			}
 
@@ -94,14 +93,13 @@ func BenchmarkLtreePop(b *testing.B) {
 
 					ind, ok := tree.Peek()
 					for j := 0; j < iters && ok; j++ {
-						var newval int
-						var alive bool
 						if len(leafs[ind]) > 0 {
-							newval = leafs[ind][0]
+							tree.Upd(ind, leafs[ind][0])
 							leafs[ind] = leafs[ind][1:]
-							alive = true
+						} else {
+							tree.Kill(ind)
 						}
-						ind, ok = tree.Pop(newval, alive)
+						ind, ok = tree.Pop()
 					}
 				}
 			})
