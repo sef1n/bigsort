@@ -45,7 +45,7 @@ func TestBenchCountsMatch(t *testing.T) {
 			tree := ltree.Init(initial)
 			lc := 0
 			for lc < want {
-				_, ind, ok := tree.Peek()
+				ind, ok := tree.Peek()
 				if !ok {
 					break
 				}
@@ -92,7 +92,7 @@ func BenchmarkLtreePop(b *testing.B) {
 					tree := ltree.Init(initial)
 					b.StartTimer()
 
-					_, ind, ok := tree.Peek()
+					ind, ok := tree.Peek()
 					for j := 0; j < iters && ok; j++ {
 						var newval int
 						var alive bool

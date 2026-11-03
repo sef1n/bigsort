@@ -4,12 +4,10 @@ import (
 	"math"
 )
 
-func (t *LoserTree) Peek() (val int, ind leafInd, ok bool) {
+func (t *LoserTree) Peek() (int, bool) {
 	w := t.winner
-	if !t.leafs[w].alive {
-		return
-	}
-	return t.leafs[w].v, w, true
+	// w alive если tree.valid
+	return w.I, w.valid
 }
 
 // Pop обновляет значение победителя
@@ -17,9 +15,16 @@ func (t *LoserTree) Peek() (val int, ind leafInd, ok bool) {
 // Если значение победителя невалидно,
 // возвращает cur = 0, ind = 0, ok = false
 func (t *LoserTree) Pop(newval int, alive bool) (ind leafInd, ok bool) {
+	// NOTE: без проверки выигрыш на малых k
+	// if !t.winner.valid {
+	// 	return 0, false
+	// }
+
 	leafs := t.leafs
-	winner := t.winner
+	winnerS := t.winner
 	nodes := t.nodes
+
+	winner := winnerS.I
 
 	if alive {
 		leafs[winner].v = newval
@@ -34,8 +39,9 @@ func (t *LoserTree) Pop(newval int, alive bool) (ind leafInd, ok bool) {
 	}
 
 	if !leafs[winner].alive {
+		t.winner.valid = false
 		return
 	}
-	t.winner = winner
+	t.winner.I = winner
 	return winner, true
 }

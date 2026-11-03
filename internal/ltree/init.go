@@ -24,6 +24,7 @@ func Init(values []int) *LoserTree {
 	lt, ext := initiateStruct(values)
 
 	leafs := lt.leafs
+	nodes := lt.nodes
 	winners := make([]leafInd, ext*2)
 	copy(winners[ext:], lt.nodes[ext:])
 
@@ -32,9 +33,10 @@ func Init(values []int) *LoserTree {
 		winner, loser := battle(leafs[i], leafs[j], i, j)
 
 		winners[p] = winner
-		lt.nodes[p] = loser
+		nodes[p] = loser
 	}
-	lt.winner = winners[1]
+	lt.winner.I = winners[1]
+	lt.winner.valid = true
 
 	return lt
 }

@@ -5,13 +5,22 @@ import (
 	"strings"
 )
 
-// String форматирует дерево. Уровни печатаются от корня (L#0) вниз.
-// nodes[0] не используется.
-func (t LoserTree) String() string {
+// String форматирует дерево для отладки.
+// Уровни печатаются от корня (L#0) вниз; nodes[0] не используется.
+func (t *LoserTree) String() string {
+	if t == nil {
+		return "{<nil LoserTree>}"
+	}
+
 	var sb strings.Builder
+	sb.Grow(64 + 32*len(t.nodes) + 32*len(t.leafs))
+
 	fmt.Fprint(&sb, "{\nLeafs: {")
 	for i, l := range t.leafs {
-		fmt.Fprintf(&sb, "(i:%d,{v:%d,valid:%v})", i, l.v, l.alive)
+		if i > 0 {
+			fmt.Fprint(&sb, " ")
+		}
+		fmt.Fprintf(&sb, "(i:%d,v:%d,alive:%v)", i, l.v, l.alive)
 	}
 	fmt.Fprint(&sb, "};\nNodes: {\n")
 
@@ -28,12 +37,12 @@ func (t LoserTree) String() string {
 		} else {
 			fmt.Fprint(&sb, ",")
 		}
-		fmt.Fprintf(&sb, "%v", t.nodes[i])
+		fmt.Fprintf(&sb, "%d", t.nodes[i])
 	}
 	if len(t.nodes) > 1 {
 		fmt.Fprint(&sb, "\n")
 	}
 
-	fmt.Fprintf(&sb, "}\nWinner: %v}", t.winner)
+	fmt.Fprintf(&sb, "}\nWinner: {I:%d, valid:%v}}", t.winner.I, t.winner.valid)
 	return sb.String()
 }

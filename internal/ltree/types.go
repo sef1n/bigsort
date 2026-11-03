@@ -16,6 +16,12 @@ type leaf struct {
 	v     int
 	alive bool
 }
+
+type Winner struct {
+	I     leafInd
+	valid bool
+}
+
 type leafInd = int
 
 // LoserTree дерево
@@ -26,5 +32,5 @@ type LoserTree struct {
 	// Листья
 	leafs []leaf
 
-	winner leafInd
+	winner Winner
 }
