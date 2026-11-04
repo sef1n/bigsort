@@ -78,11 +78,7 @@ func initiateStruct(values []int) (*LoserTree, int) {
 // Функция нестабильна при сортировке двух бесконечно больших значений -
 // первый параметр не обязательно будет победителем.
 func battle(i, j leaf, ii, ji leafInd) (winner, loser leafInd) {
-	if j.v < i.v {
-		return ji, ii
-	}
-
-	if !i.alive {
+	if j.v < i.v || !i.alive {
 		return ji, ii
 	}
 
