@@ -36,10 +36,6 @@ func (t *LoserTree) Pop() (ind leafInd, ok bool) {
 		winner, nodes[i] = battle(leafs[winner], leafs[opp], winner, opp)
 	}
 
-	if !leafs[winner].alive {
-		t.winner.valid = false
-		return
-	}
-	t.winner.I = winner
-	return winner, true
+	t.winner.I, t.winner.valid = winner, leafs[winner].alive
+	return winner, t.winner.valid
 }
