@@ -7,6 +7,9 @@ import (
 	"slices"
 	"testing"
 
+	"bigFiles/internal/bigsort/merge"
+	"bigFiles/internal/bigsort/testutils"
+
 	"github.com/spf13/afero"
 )
 
@@ -50,9 +53,9 @@ func TestSplitOnSortedChunks(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			t.Cleanup(func() { delF(mockFs, inputF) })
+			t.Cleanup(func() { testutils.DelF(mockFs, inputF) })
 
-			if err := fillFile(inputF, tt.input); err != nil {
+			if err := testutils.FillFile(inputF, tt.input); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := inputF.Seek(0, io.SeekStart); err != nil {
@@ -73,7 +76,7 @@ func TestSplitOnSortedChunks(t *testing.T) {
 			}
 
 			tmps, err := splitOnSortedChunks(context.Background(), cfg, mockFs)
-			if !cmpWithBoolErr(err, tt.expErr) {
+			if !testutils.CmpWithBoolErr(err, tt.expErr) {
 				t.Errorf("unexpected err: got %v", err)
 			}
 			if err != nil {
@@ -81,27 +84,27 @@ func TestSplitOnSortedChunks(t *testing.T) {
 			}
 			for _, tF := range tmps {
 				tF := tF
-				t.Cleanup(func() { delF(mockFs, tF) })
+				t.Cleanup(func() { testutils.DelF(mockFs, tF) })
 			}
 
 			// ---- Pre-read: newFieldReader уже прочитал первую строку чанка ----
 			type chunkState struct {
-				fr    *fieldReader
+				fr    *merge.FieldReader
 				first []byte // копия: fr.line перезаписывается read()
 				cntr  int    // байт в чанке (без \r\n)
 				eof   bool   // пустой чанк (создан на EOF-итерации)
 			}
 			cs := make([]chunkState, 0, len(tmps))
 			for _, tF := range tmps {
-				fr, ferr := newFieldReader(tF, tt.cmpField)
+				fr, ferr := merge.NewFieldReader(tF, tt.cmpField)
 				if ferr != nil && ferr != io.EOF {
 					t.Fatalf("newFieldReader: %v", ferr)
 				}
-				if len(fr.line) == 0 {
+				if len(fr.Line) == 0 {
 					cs = append(cs, chunkState{fr: fr, eof: true})
 					continue
 				}
-				first := append([]byte(nil), fr.line...)
+				first := append([]byte(nil), fr.Line...)
 				cs = append(cs, chunkState{fr: fr, first: first, cntr: len(first)})
 			}
 
@@ -111,7 +114,7 @@ func TestSplitOnSortedChunks(t *testing.T) {
 			})
 
 			// ---- Input reader: init прочитал первую строку ----
-			ir, err := newFieldReader(bytes.NewReader(tt.input), tt.cmpField)
+			ir, err := merge.NewFieldReader(bytes.NewReader(tt.input), tt.cmpField)
 			if err != nil && err != io.EOF {
 				t.Fatal(err)
 			}
@@ -123,30 +126,30 @@ func TestSplitOnSortedChunks(t *testing.T) {
 				}
 
 				// Первая строка чанка должна совпасть с текущей позицией ir.
-				if !bytes.Equal(c.first, ir.line) {
-					t.Fatalf("chunk %d: first mismatch: fr=%q ir=%q", i, c.first, ir.line)
+				if !bytes.Equal(c.first, ir.Line) {
+					t.Fatalf("chunk %d: first mismatch: fr=%q ir=%q", i, c.first, ir.Line)
 				}
 
 				// Дренаж: каждая следующая строка чанка == следующая строка input.
 				for {
-					ferr := c.fr.read()
+					ferr := c.fr.Read()
 					if ferr == io.EOF {
 						break
 					}
 					if ferr != nil {
 						t.Fatalf("chunk %d: %v", i, ferr)
 					}
-					c.cntr += len(c.fr.line)
+					c.cntr += len(c.fr.Line)
 
-					ierr := ir.read()
+					ierr := ir.Read()
 					if ierr != nil && ierr != io.EOF {
 						t.Fatalf("chunk %d: input: %v", i, ierr)
 					}
 					if ierr == io.EOF {
 						t.Fatalf("chunk %d: input ended before chunk", i)
 					}
-					if !bytes.Equal(c.fr.line, ir.line) {
-						t.Errorf("chunk %d: %q != %q", i, c.fr.line, ir.line)
+					if !bytes.Equal(c.fr.Line, ir.Line) {
+						t.Errorf("chunk %d: %q != %q", i, c.fr.Line, ir.Line)
 					}
 				}
 
@@ -159,15 +162,15 @@ func TestSplitOnSortedChunks(t *testing.T) {
 
 				// Переход к первой строке следующего чанка.
 				// На последнем чанке вернёт io.EOF — норм.
-				if err := ir.read(); err != nil && err != io.EOF {
+				if err := ir.Read(); err != nil && err != io.EOF {
 					t.Fatal(err)
 				}
 			}
 
 			// ---- Input должен быть полностью исчерпан ----
-			if err := ir.read(); err != io.EOF {
+			if err := ir.Read(); err != io.EOF {
 				if err == nil {
-					t.Errorf("input not fully consumed: %q", ir.line)
+					t.Errorf("input not fully consumed: %q", ir.Line)
 				} else {
 					t.Fatal(err)
 				}

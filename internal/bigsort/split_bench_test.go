@@ -9,6 +9,8 @@ import (
 	"strconv"
 	"testing"
 
+	"bigFiles/internal/bigsort/testutils"
+
 	"github.com/spf13/afero"
 )
 
@@ -27,7 +29,7 @@ func BenchmarkSplitOnSortedChunks(B *testing.B) {
 		fSize := 0
 
 		for range linesN {
-			line := utilGenLine(rSeed, inLineDigits, inLineLetters, genLetters)
+			line := testutils.UtilGenLine(rSeed, inLineDigits, inLineLetters, genLetters)
 			_, err = inputF.Write(line)
 			if err != nil {
 				B.Fatalf("fs: %v", err)
@@ -60,11 +62,11 @@ func BenchmarkSplitOnSortedChunks(B *testing.B) {
 
 				B.StopTimer()
 				for _, f := range tmps {
-					delF(mockFs, f)
+					testutils.DelF(mockFs, f)
 				}
 				B.StartTimer()
 			}
 		})
-		delF(mockFs, inputF)
+		testutils.DelF(mockFs, inputF)
 	}
 }

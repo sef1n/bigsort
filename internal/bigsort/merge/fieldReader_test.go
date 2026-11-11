@@ -1,4 +1,4 @@
-package bigsort
+package merge
 
 import (
 	"bytes"
@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"bigFiles/internal/bigsort/csv"
 )
 
 // Ошибки (общие для всех тестов)
@@ -18,7 +20,7 @@ func isAtoiErr(err error) bool {
 	var ne *strconv.NumError
 	return errors.As(err, &ne) && ne.Func == "Atoi"
 }
-func isFieldNotFound(err error) bool { return errors.Is(err, errFieldNotFound) }
+func isFieldNotFound(err error) bool { return errors.Is(err, csv.ErrFieldNotFound) }
 
 // TestNewFieldReader — инициализация: pre-read первой строки.
 // После newFieldReader:
@@ -77,19 +79,19 @@ func TestNewFieldReader(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r, err := newFieldReader(strings.NewReader(tc.input), tc.cmpFieldNum)
+			r, err := NewFieldReader(strings.NewReader(tc.input), tc.cmpFieldNum)
 			if r == nil {
 				t.Fatal("newFieldReader returned nil")
 			}
 			if !tc.checkErr(err) {
 				t.Fatalf("err: got %v, check failed", err)
 			}
-			if !slices.Equal(r.line, tc.wantLine) {
-				t.Fatalf("line: got %q, want %q", r.line, tc.wantLine)
+			if !slices.Equal(r.Line, tc.wantLine) {
+				t.Fatalf("line: got %q, want %q", r.Line, tc.wantLine)
 			}
 			// cmpField валиден только при успешном init
-			if err == nil && r.cmpField != tc.wantField {
-				t.Errorf("cmpField: got %d, want %d", r.cmpField, tc.wantField)
+			if err == nil && r.CmpField != tc.wantField {
+				t.Errorf("cmpField: got %d, want %d", r.CmpField, tc.wantField)
 			}
 		})
 	}
@@ -152,7 +154,7 @@ func TestFieldReaderRead(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r, err := newFieldReader(strings.NewReader(tc.input), tc.cmpFieldNum)
+			r, err := NewFieldReader(strings.NewReader(tc.input), tc.cmpFieldNum)
 			if err != nil && err != io.EOF {
 				t.Fatalf("init: %v", err)
 			}
@@ -163,19 +165,19 @@ func TestFieldReaderRead(t *testing.T) {
 			// Первая строка уже прочитана при init — копируем (r.line перезаписывается)
 			var gotLines [][]byte
 			var gotFields []int
-			gotLines = append(gotLines, append([]byte(nil), r.line...))
-			gotFields = append(gotFields, r.cmpField)
+			gotLines = append(gotLines, append([]byte(nil), r.Line...))
+			gotFields = append(gotFields, r.CmpField)
 
 			for {
-				err := r.read()
+				err := r.Read()
 				if err == io.EOF {
 					break
 				}
 				if err != nil {
 					t.Fatalf("read %d: %v", len(gotLines), err)
 				}
-				gotLines = append(gotLines, append([]byte(nil), r.line...))
-				gotFields = append(gotFields, r.cmpField)
+				gotLines = append(gotLines, append([]byte(nil), r.Line...))
+				gotFields = append(gotFields, r.CmpField)
 			}
 
 			if len(gotLines) != len(tc.wantLines) {
@@ -226,7 +228,7 @@ func TestFieldReaderRead_Errors(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r, err := newFieldReader(strings.NewReader(tc.input), tc.cmpFieldNum)
+			r, err := NewFieldReader(strings.NewReader(tc.input), tc.cmpFieldNum)
 			if err != nil && err != io.EOF {
 				t.Fatalf("init: %v", err)
 			}
@@ -237,15 +239,15 @@ func TestFieldReaderRead_Errors(t *testing.T) {
 					if !tc.checkErr(err) {
 						t.Fatalf("iter %d: err got %v, check failed", i, err)
 					}
-					if !slices.Equal(r.line, tc.wantLine) {
-						t.Errorf("iter %d: line got %q, want %q", i, r.line, tc.wantLine)
+					if !slices.Equal(r.Line, tc.wantLine) {
+						t.Errorf("iter %d: line got %q, want %q", i, r.Line, tc.wantLine)
 					}
 					return
 				}
 				if err != nil {
 					t.Fatalf("iter %d: unexpected err before wantErrAt: %v", i, err)
 				}
-				if err = r.read(); err == io.EOF {
+				if err = r.Read(); err == io.EOF {
 					t.Fatalf("iter %d: got EOF before wantErrAt", i)
 				}
 			}

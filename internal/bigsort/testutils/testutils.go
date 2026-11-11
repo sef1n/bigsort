@@ -1,4 +1,4 @@
-package bigsort
+package testutils
 
 import (
 	"bufio"
@@ -9,17 +9,17 @@ import (
 	"github.com/spf13/afero"
 )
 
-// trimLineCopy возвращает trimmed-копию: []byte переиспользуется.
-func trimLineCopy(b []byte) []byte {
+// TrimLineCopy возвращает trimmed-копию: []byte переиспользуется.
+func TrimLineCopy(b []byte) []byte {
 	b = bytes.TrimSuffix(b, []byte("\n"))
 	b = bytes.TrimSuffix(b, []byte("\r"))
 	return append([]byte(nil), b...)
 }
 
-func utilGenLine(r *rand.Rand, iN, lN int, letters []byte) []byte {
+func UtilGenLine(r *rand.Rand, iN, lN int, letters []byte) []byte {
 	var b bytes.Buffer
 	// или b := make([]byte, 0, iN+1+lN+1)
-	b.WriteString(nDigitString(r, iN))
+	b.WriteString(NDigitString(r, iN))
 	b.WriteByte(',')
 	for i := range lN {
 		l := letters[i%len(letters)]
@@ -29,8 +29,8 @@ func utilGenLine(r *rand.Rand, iN, lN int, letters []byte) []byte {
 	return b.Bytes()
 }
 
-// nDigitString возвращает случайное n-значное число (n >= 1) как строку.
-func nDigitString(r *rand.Rand, n int) string {
+// NDigitString возвращает случайное n-значное число (n >= 1) как строку.
+func NDigitString(r *rand.Rand, n int) string {
 	if n < 1 {
 		panic("n >= 1")
 	}
@@ -42,7 +42,7 @@ func nDigitString(r *rand.Rand, n int) string {
 	return string(b)
 }
 
-func fillFile(f afero.File, input []byte) error {
+func FillFile(f afero.File, input []byte) error {
 	w := bufio.NewWriter(f)
 	if _, err := w.Write(input); err != nil {
 		return err
@@ -54,7 +54,7 @@ func fillFile(f afero.File, input []byte) error {
 	return err
 }
 
-func cmpWithBoolErr(err error, isNeeded bool) bool {
+func CmpWithBoolErr(err error, isNeeded bool) bool {
 	var bErr bool
 	if err != nil {
 		bErr = true
@@ -62,7 +62,7 @@ func cmpWithBoolErr(err error, isNeeded bool) bool {
 	return bErr == isNeeded
 }
 
-func delF(fs afero.Fs, f afero.File) {
+func DelF(fs afero.Fs, f afero.File) {
 	name := f.Name()
 	_ = f.Close()
 	_ = fs.Remove(name)

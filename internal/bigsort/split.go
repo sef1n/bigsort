@@ -11,6 +11,8 @@ import (
 	"slices"
 	"sync"
 
+	"bigFiles/internal/bigsort/csv"
+
 	"github.com/calmdocs/ulimit"
 	"github.com/spf13/afero"
 	"golang.org/x/sync/errgroup"
@@ -75,12 +77,12 @@ func splitOnSortedChunks(parentCtx context.Context, cfg chunkPlan, fsys afero.Fs
 			return nil, gCtx.Err() // fallback
 		}
 		// Chunk parsing
-		tableParseStep, err := parseCSVTable(tableReader, cfg.cmpFieldNum, cfg.bytesPerChunk)
+		tableParseStep, err := csv.ParseCSVTable(tableReader, cfg.cmpFieldNum, cfg.bytesPerChunk)
 		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("parsing table: %w", err)
 		}
 		// Захватываем переменные (go < 1.22)
-		entries := tableParseStep.entries
+		entries := tableParseStep.Entries
 		chunk := curChunk
 
 		// Chunk sorting && spliting
@@ -127,14 +129,14 @@ func estimateChunks(toChunksFile afero.File, bytesPerChunk int) (uint64, error) 
 }
 
 // processChunk выполняет сортировку и записывает отсортированный чанк во временный файл
-func processChunk(parentCtx context.Context, chunk int, entries []fieldEntry, tmpFilesDirPath string, fsys afero.Fs) (afero.File, error) {
+func processChunk(parentCtx context.Context, chunk int, entries []csv.FieldEntry, tmpFilesDirPath string, fsys afero.Fs) (afero.File, error) {
 	if err := parentCtx.Err(); err != nil {
 		return nil, err
 	}
 
 	// Chunk sorting
-	slices.SortFunc(entries, func(a, b fieldEntry) int {
-		return cmp.Compare(a.field, b.field)
+	slices.SortFunc(entries, func(a, b csv.FieldEntry) int {
+		return cmp.Compare(a.Field, b.Field)
 	})
 
 	// Проверка контекста в производися в createMiddleFile
@@ -149,7 +151,7 @@ func processChunk(parentCtx context.Context, chunk int, entries []fieldEntry, tm
 }
 
 // createMiddleFile создает tmp файл, заполняет его строками processingEntries. В случае ошибки закрывает и удаляет файл
-func createMiddleFile(ctx context.Context, processingEntries []fieldEntry, creationPath string, fsys afero.Fs) (tmpF afero.File, err error) {
+func createMiddleFile(ctx context.Context, processingEntries []csv.FieldEntry, creationPath string, fsys afero.Fs) (tmpF afero.File, err error) {
 	tmpF, err = afero.TempFile(fsys, creationPath, "")
 	if err != nil {
 		return
@@ -170,7 +172,7 @@ func createMiddleFile(ctx context.Context, processingEntries []fieldEntry, creat
 			return
 		}
 
-		if _, err = w.Write(v.line); err != nil {
+		if _, err = w.Write(v.Line); err != nil {
 			return
 		}
 		if err = w.WriteByte('\n'); err != nil {

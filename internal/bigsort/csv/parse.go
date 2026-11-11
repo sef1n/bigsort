@@ -1,4 +1,4 @@
-package bigsort
+package csv
 
 import (
 	"bufio"
@@ -17,7 +17,7 @@ const (
 )
 
 type parseStep struct {
-	entries   []fieldEntry
+	Entries   []FieldEntry
 	readlines int // число итераций ReadBytes, включая пустую EOF-итерацию — для нумерации ошибок
 }
 
@@ -32,7 +32,7 @@ func (e *parseError) Error() string {
 
 func (e *parseError) Unwrap() error { return e.Err }
 
-// parseCSVTable читает непустые строки из br с soft limit = MaxParsed.
+// ParseCSVTable читает непустые строки из br с soft limit = MaxParsed.
 // Использует ReadSlice с fallback на ReadBytes при любых ошибках чтения.
 // Возвращает:
 //   - (parseStep, nil) — чанк прочитан, данные есть, продолжаем.
@@ -42,13 +42,13 @@ func (e *parseError) Unwrap() error { return e.Err }
 // Пустые строки (после отсечения \r\n) пропускаются;
 // строки из одних пробелов — ошибка парсинга.
 // Требует maxParsed > 0.
-func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep, error) {
+func ParseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep, error) {
 	if maxParsedBytes <= 0 {
 		return parseStep{}, &parseError{0, fmt.Errorf("maxParsedBytes must be > 0, got %d", maxParsedBytes)}
 	}
 	// Нет смысла ограничивать cap - если возникают ошибки при выделении памяти,
 	// нужно менять значение размера чанка
-	processingFields := make([]fieldEntry, 0, maxParsedBytes/predictAvgLineLen)
+	processingFields := make([]FieldEntry, 0, maxParsedBytes/predictAvgLineLen)
 
 	// Арена для уменьшения кол-ва аллокаций при чтении
 	// Использует ReadSlice + fallback на ReadBytes для очень больших строк
@@ -98,7 +98,7 @@ func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep
 		arenaOffset += len(line)
 		if len(line) > 0 {
 
-			nthF, parseErr := nthField(line, cmpFieldNum)
+			nthF, parseErr := NthField(line, cmpFieldNum)
 			if parseErr != nil {
 				return parseStep{}, &parseError{readLines, fmt.Errorf("parsing: %w", parseErr)}
 			}
@@ -119,10 +119,10 @@ func parseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep
 	return parseStep{processingFields, readLines}, nil
 }
 
-var errFieldNotFound = errors.New("field not found")
+var ErrFieldNotFound = errors.New("field not found")
 
-// nthField разбивает строку на поля по разделителю ',', возвращает n поле
-func nthField(line []byte, n int) ([]byte, error) {
+// NthField разбивает строку на поля по разделителю ',', возвращает n поле
+func NthField(line []byte, n int) ([]byte, error) {
 	if n < 0 {
 		return nil, fmt.Errorf("field num must be >= 0, got %v", n)
 	}
@@ -130,7 +130,7 @@ func nthField(line []byte, n int) ([]byte, error) {
 	for i := 0; i < n; i++ {
 		idx := bytes.IndexByte(line[start:], ',')
 		if idx < 0 {
-			return nil, fmt.Errorf("%w: no %d in %q", errFieldNotFound, n, line)
+			return nil, fmt.Errorf("%w: no %d in %q", ErrFieldNotFound, n, line)
 		}
 		start += idx + 1
 	}
@@ -142,24 +142,24 @@ func nthField(line []byte, n int) ([]byte, error) {
 }
 
 // TODO: Любой Entry?
-type fieldEntry struct {
-	line  []byte
-	field int
+type FieldEntry struct {
+	Line  []byte
+	Field int
 	// NOTE: если использовать поля для хранения arena offset (см. parseCSVTable),
 	// то снизится нагрузка на gc, но нужно контролировать время жизни arena
 }
 
-// bytesToString — zero-copy []byte → string для read-only операций.
+// BytesToString — zero-copy []byte → string для read-only операций.
 // Результат НЕ должен переживать b; используется только для
 // strconv.Atoi, который читает и не сохраняет строку
-func bytesToString(b []byte) string {
+func BytesToString(b []byte) string {
 	return unsafe.String(unsafe.SliceData(b), len(b))
 }
 
-func newFieldEntry(line []byte, field []byte) (fieldEntry, error) {
-	v, err := strconv.Atoi(bytesToString(field))
+func newFieldEntry(line []byte, field []byte) (FieldEntry, error) {
+	v, err := strconv.Atoi(BytesToString(field))
 	if err != nil {
-		return fieldEntry{}, err
+		return FieldEntry{}, err
 	}
-	return fieldEntry{line, v}, nil
+	return FieldEntry{line, v}, nil
 }

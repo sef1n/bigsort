@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"bigFiles/internal/bigsort/merge"
+
 	"github.com/spf13/afero"
 )
 
@@ -106,7 +108,7 @@ func SortFile(parentCtx context.Context, cfg SortConfig, fsys afero.Fs) error {
 		}
 	}()
 
-	if err = mergeWithContext(parentCtx, cfg.CmpFieldNum, tmpFiles, outFile); err != nil {
+	if err = merge.MergeWithContext(parentCtx, cfg.CmpFieldNum, tmpFiles, outFile); err != nil {
 		return fmt.Errorf("merging middles: %w", err)
 	}
 	// Закрываем перед переименованием (избегаем проблем на Windows)

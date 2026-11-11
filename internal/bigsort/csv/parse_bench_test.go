@@ -1,4 +1,4 @@
-package bigsort
+package csv
 
 import (
 	"bufio"
@@ -8,6 +8,8 @@ import (
 	"io"
 	"math/rand"
 	"testing"
+
+	"bigFiles/internal/bigsort/testutils"
 )
 
 func BenchmarkParseCSVTable(b *testing.B) {
@@ -21,7 +23,7 @@ func BenchmarkParseCSVTable(b *testing.B) {
 
 			lineSize := 0
 			for range linesN {
-				line := utilGenLine(rSeed, inLineDigits, inLineLetters, genLetters)
+				line := testutils.UtilGenLine(rSeed, inLineDigits, inLineLetters, genLetters)
 				input = append(input, line...)
 				lineSize += len(line)
 			}
@@ -34,7 +36,7 @@ func BenchmarkParseCSVTable(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				br.Reset(bytes.NewReader(input))
-				if _, err := parseCSVTable(br, 0, maxParsed); err != nil && !errors.Is(err, io.EOF) {
+				if _, err := ParseCSVTable(br, 0, maxParsed); err != nil && !errors.Is(err, io.EOF) {
 					b.Fatal(err)
 				}
 			}

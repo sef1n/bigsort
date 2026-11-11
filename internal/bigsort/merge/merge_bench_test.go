@@ -1,4 +1,4 @@
-package bigsort
+package merge
 
 import (
 	"bufio"
@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strconv"
 	"testing"
+
+	"bigFiles/internal/bigsort/testutils"
 
 	"github.com/spf13/afero"
 )
@@ -30,7 +32,7 @@ func setupMergeFiles(fsys afero.Fs, filesN, linesPerFile int) ([]afero.File, int
 		// Генерим и сортируем строки (эмуляция processChunk)
 		lines := make([][]byte, linesPerFile)
 		for j := 0; j < linesPerFile; j++ {
-			lines[j] = utilGenLine(rSeed, inLineDigits, inLineLetters, genLetters)
+			lines[j] = testutils.UtilGenLine(rSeed, inLineDigits, inLineLetters, genLetters)
 		}
 		slices.SortFunc(lines, func(a, b []byte) int {
 			return cmp.Compare(firstField(a), firstField(b))
@@ -89,7 +91,7 @@ func BenchmarkMergeWithContext(b *testing.B) {
 			}
 			defer func() {
 				for _, f := range files {
-					delF(mockFs, f)
+					testutils.DelF(mockFs, f)
 				}
 			}()
 
@@ -109,7 +111,7 @@ func BenchmarkMergeWithContext(b *testing.B) {
 
 				// io.Discard: не меряем стоимость записи на диск,
 				// только CPU merge (heap + Atoi + WriteString в bufio)
-				if err := mergeWithContext(context.Background(), 0, files, io.Discard); err != nil {
+				if err := MergeWithContext(context.Background(), 0, files, io.Discard); err != nil {
 					b.Fatal(err)
 				}
 			}

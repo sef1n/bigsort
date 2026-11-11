@@ -1,4 +1,4 @@
-package bigsort
+package csv
 
 import (
 	"bufio"
@@ -26,7 +26,7 @@ func TestParseCSVTable(t *testing.T) {
 	}
 	nilErr := func(err error) bool { return err == nil }
 	eof := func(err error) bool { return errors.Is(err, io.EOF) }
-	fieldNotFound := func(err error) bool { return errors.Is(err, errFieldNotFound) }
+	fieldNotFound := func(err error) bool { return errors.Is(err, ErrFieldNotFound) }
 	isParseError := func(wantLine int) func(error) bool {
 		return func(err error) bool {
 			var pe *parseError
@@ -39,8 +39,8 @@ func TestParseCSVTable(t *testing.T) {
 
 	tests := []parseTest{
 		// --- Пусто / только переводы строк → io.EOF ---
-		{"empty", 0, 1, "", parseStep{[]fieldEntry{}, 1}, eof},
-		{"only newlines", 0, 1, "\n\n", parseStep{[]fieldEntry{}, 3}, eof},
+		{"empty", 0, 1, "", parseStep{[]FieldEntry{}, 1}, eof},
+		{"only newlines", 0, 1, "\n\n", parseStep{[]FieldEntry{}, 3}, eof},
 
 		// --- Невалидный maxP → *parseError (не io.EOF) ---
 		{"maxP=0", 0, 0, "1,a\n", parseStep{}, isParseError(0)},
@@ -57,13 +57,13 @@ func TestParseCSVTable(t *testing.T) {
 		// "1,a"=3 байта, maxP=3: после первой строки parsedBytes=3>=3 → выход
 		{
 			"one line exactly max", 0, 3, "1,a\n",
-			parseStep{[]fieldEntry{{[]byte("1,a"), 1}}, 1},
+			parseStep{[]FieldEntry{{[]byte("1,a"), 1}}, 1},
 			nilErr,
 		},
 		// "1,a"+"2,b"=6 байт, maxP=6
 		{
 			"two lines exactly max", 0, 6, "1,a\n2,b\n",
-			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 2},
+			parseStep{[]FieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 2},
 			nilErr,
 		},
 
@@ -71,79 +71,79 @@ func TestParseCSVTable(t *testing.T) {
 		// maxP=2, первая строка 3 байта → 1 entry, nilErr
 		{
 			"soft limit", 0, 2, "1,a\n2,b\n",
-			parseStep{[]fieldEntry{{[]byte("1,a"), 1}}, 1},
+			parseStep{[]FieldEntry{{[]byte("1,a"), 1}}, 1},
 			nilErr,
 		},
 
 		// --- Файл кончился → io.EOF с данными (+ пустая EOF-итерация) ---
 		{
 			"one line with EOF", 0, 100, "1,a\n",
-			parseStep{[]fieldEntry{{[]byte("1,a"), 1}}, 2},
+			parseStep{[]FieldEntry{{[]byte("1,a"), 1}}, 2},
 			eof,
 		},
 		{
 			"two lines with EOF", 0, 100, "1,a\n2,b\n",
-			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 3},
+			parseStep{[]FieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 3},
 			eof,
 		},
 		{
 			"three lines with EOF", 0, 100, "1,a\n2,b\n3,c\n",
-			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}, {[]byte("3,c"), 3}}, 4},
+			parseStep{[]FieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}, {[]byte("3,c"), 3}}, 4},
 			eof,
 		},
 		{
 			"cmpF=1", 1, 100, "a,10\nb,20\n",
-			parseStep{[]fieldEntry{{[]byte("a,10"), 10}, {[]byte("b,20"), 20}}, 3},
+			parseStep{[]FieldEntry{{[]byte("a,10"), 10}, {[]byte("b,20"), 20}}, 3},
 			eof,
 		},
 		{
 			"crlf", 0, 100, "1,a\r\n2,b\r\n",
-			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 3},
+			parseStep{[]FieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 3},
 			eof,
 		},
 		{
 			"empty middle line", 0, 100, "1,a\n\n2,b\n",
-			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 4},
+			parseStep{[]FieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 4},
 			eof,
 		},
 		{
 			"no trailing nl", 0, 100, "1,a\n2,b",
-			parseStep{[]fieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 2},
+			parseStep{[]FieldEntry{{[]byte("1,a"), 1}, {[]byte("2,b"), 2}}, 2},
 			eof,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := parseCSVTable(bufio.NewReader(strings.NewReader(tc.input)), tc.cmpF, tc.maxP)
+			got, err := ParseCSVTable(bufio.NewReader(strings.NewReader(tc.input)), tc.cmpF, tc.maxP)
 
 			if !tc.wantErr(err) {
 				t.Fatalf("err: got %v, check failed", err)
 			}
 			// При ошибке (не EOF) step должен быть zero value.
 			if err != nil && !errors.Is(err, io.EOF) {
-				if got.entries != nil || got.readlines != 0 {
+				if got.Entries != nil || got.readlines != 0 {
 					t.Fatalf("step on error: got %+v, want zero", got)
 				}
 				return
 			}
 
 			// entries: сначала длина
-			if len(got.entries) != len(tc.want.entries) {
-				t.Fatalf("entries len: got %d, want %d", len(got.entries), len(tc.want.entries))
+			if len(got.Entries) != len(tc.want.Entries) {
+				t.Fatalf("entries len: got %d, want %d", len(got.Entries), len(tc.want.Entries))
 			}
 
 			// entries: поэлементно, с превью для line
-			for i := range got.entries {
-				g, w := got.entries[i], tc.want.entries[i]
+			for i := range got.Entries {
+				g, w := got.Entries[i], tc.want.Entries[i]
 
-				if g.field != w.field {
-					t.Errorf("entries[%d].field: got %d, want %d", i, g.field, w.field)
+				if g.Field != w.Field {
+					t.Errorf("entries[%d].field: got %d, want %d", i, g.Field, w.Field)
 				}
-				if !slices.Equal(g.line, w.line) {
+				if !slices.Equal(g.Line, w.Line) {
 					t.Errorf("entries[%d].line: got %d bytes %q, want %d bytes %q",
-						i, len(g.line), truncate(g.line, 30),
-						len(w.line), truncate(w.line, 30))
+						i, len(g.Line), truncate(g.Line, 30),
+						len(w.Line), truncate(w.Line, 30))
 				}
 			}
 
@@ -158,18 +158,18 @@ func TestParseCSVTable(t *testing.T) {
 func TestParseCSVTable_FallbackLongLine(t *testing.T) {
 	input := strings.Repeat("a", 5000) + ",1\n" + "b,2\n" // > 4096 buffer
 
-	got, err := parseCSVTable(bufio.NewReader(strings.NewReader(input)), 1, 100_000)
+	got, err := ParseCSVTable(bufio.NewReader(strings.NewReader(input)), 1, 100_000)
 	if err != nil && !errors.Is(err, io.EOF) {
 		t.Fatalf("err: %v", err)
 	}
-	if len(got.entries) != 2 {
-		t.Fatalf("entries: got %d, want 2", len(got.entries))
+	if len(got.Entries) != 2 {
+		t.Fatalf("entries: got %d, want 2", len(got.Entries))
 	}
-	if got.entries[0].field != 1 {
-		t.Errorf("entries[0].field: got %d, want 1", got.entries[0].field)
+	if got.Entries[0].Field != 1 {
+		t.Errorf("entries[0].field: got %d, want 1", got.Entries[0].Field)
 	}
-	if got.entries[1].field != 2 {
-		t.Errorf("entries[1].field: got %d, want 2", got.entries[1].field)
+	if got.Entries[1].Field != 2 {
+		t.Errorf("entries[1].field: got %d, want 2", got.Entries[1].Field)
 	}
 }
 
