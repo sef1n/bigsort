@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"bigFiles/internal/bigsort/merge"
+	"bigFiles/internal/bigsort/split"
 
 	"github.com/spf13/afero"
 )
@@ -27,10 +28,8 @@ type SortConfig struct {
 	// SkipFDLimit   bool
 }
 
-const defaultBytesPerChunk = 16 * (1024 * 1024) // 16 мб
-
 func DefaultSortConfig() SortConfig {
-	return SortConfig{BytesPerChunk: defaultBytesPerChunk}
+	return SortConfig{BytesPerChunk: split.DefaultBytesPerChunk}
 }
 
 func (cfg SortConfig) validate() error {
@@ -67,19 +66,19 @@ func SortFile(parentCtx context.Context, cfg SortConfig, fsys afero.Fs) error {
 	}
 	defer func() { _ = inFile.Close() }()
 	// Вычисление ожидаемого числа чанков в inFile
-	estimatedChunks, err := estimateChunks(inFile, cfg.BytesPerChunk)
+	estimatedChunks, err := split.EstimateChunks(inFile, cfg.BytesPerChunk)
 	if err != nil {
 		return fmt.Errorf("chunk estimating: %w", err)
 	}
 
 	// Split
 	tmpFilesDirPath := filepath.Dir(cfg.OutPath)
-	tmpFiles, err := splitOnSortedChunks(parentCtx, chunkPlan{
-		inFile:          inFile,
-		tmpDir:          tmpFilesDirPath,
-		cmpFieldNum:     cfg.CmpFieldNum,
-		bytesPerChunk:   cfg.BytesPerChunk,
-		estimatedChunks: estimatedChunks,
+	tmpFiles, err := split.SplitOnSortedChunks(parentCtx, split.ChunkPlan{
+		In:              inFile,
+		TmpDir:          tmpFilesDirPath,
+		CmpFieldNum:     cfg.CmpFieldNum,
+		BytesPerChunk:   cfg.BytesPerChunk,
+		EstimatedChunks: estimatedChunks,
 	}, fsys)
 	if err != nil {
 		return fmt.Errorf("spliting on chunks: %w", err)

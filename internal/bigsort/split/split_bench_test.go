@@ -1,4 +1,4 @@
-package bigsort
+package split
 
 import (
 	"context"
@@ -37,16 +37,16 @@ func BenchmarkSplitOnSortedChunks(B *testing.B) {
 			fSize += len(line)
 		}
 
-		estimatedChunks, err := estimateChunks(inputF, defaultBytesPerChunk)
+		estimatedChunks, err := EstimateChunks(inputF, DefaultBytesPerChunk)
 		if err != nil {
 			B.Fatal(err)
 		}
-		cfg := chunkPlan{
-			inFile:          inputF,
-			tmpDir:          ".",
-			cmpFieldNum:     0,
-			bytesPerChunk:   defaultBytesPerChunk,
-			estimatedChunks: estimatedChunks,
+		cfg := ChunkPlan{
+			In:              inputF,
+			TmpDir:          ".",
+			CmpFieldNum:     0,
+			BytesPerChunk:   DefaultBytesPerChunk,
+			EstimatedChunks: estimatedChunks,
 		}
 
 		B.Run(fmt.Sprintf("lines=%d", linesN), func(B *testing.B) {
@@ -55,7 +55,7 @@ func BenchmarkSplitOnSortedChunks(B *testing.B) {
 			B.ResetTimer()
 
 			for i := 0; i < B.N; i++ {
-				tmps, err := splitOnSortedChunks(context.Background(), cfg, mockFs)
+				tmps, err := SplitOnSortedChunks(context.Background(), cfg, mockFs)
 				if err != nil && !errors.Is(err, io.EOF) {
 					B.Fatal(err)
 				}

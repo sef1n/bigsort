@@ -1,4 +1,4 @@
-package bigsort
+package split
 
 import (
 	"bufio"
@@ -18,34 +18,36 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// chunkPlan — параметры одного прохода split
-type chunkPlan struct {
-	inFile io.Reader
+// ChunkPlan — параметры одного прохода split
+type ChunkPlan struct {
+	In io.Reader
 	// Директория для временных файлов
-	tmpDir      string
-	cmpFieldNum int
+	TmpDir      string
+	CmpFieldNum int
 
 	// Soft limit памяти на чанк.
 	// Может быть превышен
-	bytesPerChunk int
+	BytesPerChunk int
 
 	// Оценочное кол-во чанков в inFile
-	estimatedChunks uint64
+	EstimatedChunks uint64
 }
 
-// splitOnSortedChunks
+const DefaultBytesPerChunk = 16 * (1024 * 1024) // 16 мб
+
+// SplitOnSortedChunks
 // Последовательно читает файл чанками по bytesPerChunk строк.
 // Пул воркеров (NumCPU*2) параллельно сортирует чанки и пишет их
 // в отдельные tmp-файлы
 //
 // При больших файлах может превысить ulimit
-func splitOnSortedChunks(parentCtx context.Context, cfg chunkPlan, fsys afero.Fs) ([]afero.File, error) {
+func SplitOnSortedChunks(parentCtx context.Context, cfg ChunkPlan, fsys afero.Fs) ([]afero.File, error) {
 	// TODO: распараллелить чтение таблицы через offset?
-	tableReader := bufio.NewReader(cfg.inFile)
+	tableReader := bufio.NewReader(cfg.In)
 
 	var (
 		mu      sync.Mutex
-		middles = make([]afero.File, 0, cfg.estimatedChunks)
+		middles = make([]afero.File, 0, cfg.EstimatedChunks)
 	)
 
 	ctx, cancel := context.WithCancel(parentCtx)
@@ -77,7 +79,7 @@ func splitOnSortedChunks(parentCtx context.Context, cfg chunkPlan, fsys afero.Fs
 			return nil, gCtx.Err() // fallback
 		}
 		// Chunk parsing
-		tableParseStep, err := csv.ParseCSVTable(tableReader, cfg.cmpFieldNum, cfg.bytesPerChunk)
+		tableParseStep, err := csv.ParseCSVTable(tableReader, cfg.CmpFieldNum, cfg.BytesPerChunk)
 		if err != nil && !errors.Is(err, io.EOF) {
 			return nil, fmt.Errorf("parsing table: %w", err)
 		}
@@ -87,7 +89,7 @@ func splitOnSortedChunks(parentCtx context.Context, cfg chunkPlan, fsys afero.Fs
 
 		// Chunk sorting && spliting
 		g.Go(func() error {
-			middleFile, err := processChunk(gCtx, chunk, entries, cfg.tmpDir, fsys)
+			middleFile, err := processChunk(gCtx, chunk, entries, cfg.TmpDir, fsys)
 			if err != nil {
 				return err
 			}
@@ -108,8 +110,8 @@ func splitOnSortedChunks(parentCtx context.Context, cfg chunkPlan, fsys afero.Fs
 	return middles, nil
 }
 
-// estimateChunks оценивает количество чанков в переданном файле основываясь на ulimit и file size
-func estimateChunks(toChunksFile afero.File, bytesPerChunk int) (uint64, error) {
+// EstimateChunks оценивает количество чанков в переданном файле основываясь на ulimit и file size
+func EstimateChunks(toChunksFile afero.File, bytesPerChunk int) (uint64, error) {
 	tableStat, err := toChunksFile.Stat()
 	if err != nil {
 		return 0, fmt.Errorf("stat input: %w", err)

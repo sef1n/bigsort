@@ -1,4 +1,4 @@
-package bigsort
+package split
 
 import (
 	"bufio"
@@ -62,20 +62,20 @@ func TestSplitOnSortedChunks(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			estimatedChunks, err := estimateChunks(inputF, defaultBytesPerChunk)
+			estimatedChunks, err := EstimateChunks(inputF, DefaultBytesPerChunk)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			cfg := chunkPlan{
-				inFile:          inputF,
-				tmpDir:          ".",
-				cmpFieldNum:     tt.cmpField,
-				bytesPerChunk:   tt.chunk,
-				estimatedChunks: estimatedChunks,
+			cfg := ChunkPlan{
+				In:              inputF,
+				TmpDir:          ".",
+				CmpFieldNum:     tt.cmpField,
+				BytesPerChunk:   DefaultBytesPerChunk,
+				EstimatedChunks: estimatedChunks,
 			}
 
-			tmps, err := splitOnSortedChunks(context.Background(), cfg, mockFs)
+			tmps, err := SplitOnSortedChunks(context.Background(), cfg, mockFs)
 			if !testutils.CmpWithBoolErr(err, tt.expErr) {
 				t.Errorf("unexpected err: got %v", err)
 			}
