@@ -9,16 +9,16 @@ import (
 	"github.com/spf13/afero"
 )
 
-type readersHeap []*FieldReader
+type readersHeap []*fieldReader
 
 // sort.Interface
 func (h readersHeap) Len() int           { return len(h) }
-func (h readersHeap) Less(i, j int) bool { return h[i].CmpField < h[j].CmpField }
+func (h readersHeap) Less(i, j int) bool { return h[i].cmpField < h[j].cmpField }
 func (h readersHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
 
 // heap.Interface
 func (h *readersHeap) Push(x any) {
-	*h = append(*h, x.(*FieldReader))
+	*h = append(*h, x.(*fieldReader))
 }
 
 func (h *readersHeap) Pop() any {
@@ -40,7 +40,7 @@ func MergeWithContext(ctx context.Context, cmpFieldNum int, inS []afero.File, ou
 		if err != nil && err != io.EOF {
 			return err
 		}
-		if len(r.Line) == 0 {
+		if len(r.line) == 0 {
 			continue
 		}
 		h = append(h, r)
@@ -55,11 +55,11 @@ func MergeWithContext(ctx context.Context, cmpFieldNum int, inS []afero.File, ou
 			return err
 		}
 
-		popped := heap.Pop(&h).(*FieldReader)
-		popped.Line = append(popped.Line, byte('\n'))
+		popped := heap.Pop(&h).(*fieldReader)
+		popped.line = append(popped.line, byte('\n'))
 
 		// Пишем сразу с \n
-		if _, err := w.Write(popped.Line); err != nil {
+		if _, err := w.Write(popped.line); err != nil {
 			return err
 		}
 

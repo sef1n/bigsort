@@ -1,13 +1,13 @@
 package bigsort
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"io"
 	"slices"
 	"testing"
 
-	"bigFiles/internal/bigsort/merge"
 	"bigFiles/internal/bigsort/testutils"
 
 	"github.com/spf13/afero"
@@ -87,93 +87,111 @@ func TestSplitOnSortedChunks(t *testing.T) {
 				t.Cleanup(func() { testutils.DelF(mockFs, tF) })
 			}
 
-			// ---- Pre-read: newFieldReader уже прочитал первую строку чанка ----
 			type chunkState struct {
-				fr    *merge.FieldReader
-				first []byte // копия: fr.line перезаписывается read()
+				r     *bufio.Scanner
+				first []byte // Первая строка для поиска чанка
+				cur   []byte // Текущая строка
 				cntr  int    // байт в чанке (без \r\n)
 				eof   bool   // пустой чанк (создан на EOF-итерации)
 			}
-			cs := make([]chunkState, 0, len(tmps))
+			css := make([]chunkState, 0, len(tmps))
 			for _, tF := range tmps {
-				fr, ferr := merge.NewFieldReader(tF, tt.cmpField)
-				if ferr != nil && ferr != io.EOF {
-					t.Fatalf("newFieldReader: %v", ferr)
+				s := bufio.NewScanner(tF)
+				if !s.Scan() {
+					if err := s.Err(); err != nil {
+						t.Fatalf("scanner: %v", err)
+					}
 				}
-				if len(fr.Line) == 0 {
-					cs = append(cs, chunkState{fr: fr, eof: true})
+
+				first := append([]byte(nil), s.Bytes()...)
+				if len(first) == 0 {
+					css = append(css, chunkState{r: s, eof: true})
 					continue
 				}
-				first := append([]byte(nil), fr.Line...)
-				cs = append(cs, chunkState{fr: fr, first: first, cntr: len(first)})
+				css = append(css, chunkState{r: s, first: first, cur: first, cntr: len(first)})
 			}
 
 			// Порядок чанков недетерминирован (см. WARN) — восстанавливаем по значению.
-			slices.SortFunc(cs, func(a, b chunkState) int {
+			slices.SortFunc(css, func(a, b chunkState) int {
 				return bytes.Compare(a.first, b.first)
 			})
 
-			// ---- Input reader: init прочитал первую строку ----
-			ir, err := merge.NewFieldReader(bytes.NewReader(tt.input), tt.cmpField)
-			if err != nil && err != io.EOF {
-				t.Fatal(err)
-			}
+			is := func() chunkState {
+				s := bufio.NewScanner(bytes.NewReader(tt.input))
+				if !s.Scan() {
+					if err := s.Err(); err != nil {
+						t.Fatalf("I reader err: %v", err)
+					}
+				}
+				first := append([]byte(nil), s.Bytes()...)
+				return chunkState{r: s, first: first, cur: first, cntr: len(first)}
+			}()
 
-			for i := range cs {
-				c := &cs[i]
-				if c.eof {
+			for _, c := range css {
+				t.Log(string(c.first))
+			}
+			for n := range css {
+				cs := &css[n]
+				if cs.eof {
 					continue // пустой чанк — не двигает ir
 				}
+				t.Log(string(cs.first))
 
-				// Первая строка чанка должна совпасть с текущей позицией ir.
-				if !bytes.Equal(c.first, ir.Line) {
-					t.Fatalf("chunk %d: first mismatch: fr=%q ir=%q", i, c.first, ir.Line)
+				// Первая строка чанка должна совпасть с текущей позицией is.
+				t.Log(string(cs.first), string(is.cur))
+				if !bytes.Equal(cs.first, is.cur) {
+					t.Fatalf("chunk %d: first mismatch: cs=%q ir=%q", n, cs.first, is.cur)
 				}
 
-				// Дренаж: каждая следующая строка чанка == следующая строка input.
+				// Каждая следующая строка чанка == следующая строка input.
 				for {
-					ferr := c.fr.Read()
-					if ferr == io.EOF {
-						break
+					if !cs.r.Scan() {
+						if err := cs.r.Err(); err != nil {
+							t.Fatalf("chunk %d: %v", n, err)
+						}
+						break // EOF
 					}
-					if ferr != nil {
-						t.Fatalf("chunk %d: %v", i, ferr)
-					}
-					c.cntr += len(c.fr.Line)
+					cs.cur = cs.r.Bytes()
+					cs.cntr += len(cs.cur)
 
-					ierr := ir.Read()
-					if ierr != nil && ierr != io.EOF {
-						t.Fatalf("chunk %d: input: %v", i, ierr)
+					if !is.r.Scan() {
+						if err := is.r.Err(); err != nil {
+							t.Fatalf("chunk %d: input: %v", n, is.r.Err())
+						}
+						t.Fatalf("chunk %d: input ended before chunk", n)
 					}
-					if ierr == io.EOF {
-						t.Fatalf("chunk %d: input ended before chunk", i)
-					}
-					if !bytes.Equal(c.fr.Line, ir.Line) {
-						t.Errorf("chunk %d: %q != %q", i, c.fr.Line, ir.Line)
+					is.cur = is.r.Bytes()
+					is.cntr += len(is.cur)
+
+					if !bytes.Equal(cs.cur, is.cur) {
+						t.Errorf("chunk %d: %q != %q", n, cs.cur, is.cur)
 					}
 				}
 
 				// Последний физический чанк может быть < bytesPerChunk (хвост input).
 				// Эвристика: см. WARN — считаем, что данные уникальны и порядок по
 				// значению == порядок по позиции, тогда последний в cs — последний.
-				if i < len(cs)-1 && c.cntr < tt.chunk {
-					t.Errorf("chunk %d too small: %d < %d", i, c.cntr, tt.chunk)
+				if n < len(css)-1 && cs.cntr < tt.chunk {
+					t.Errorf("chunk %d too small: %d < %d", n, cs.cntr, tt.chunk)
 				}
 
 				// Переход к первой строке следующего чанка.
 				// На последнем чанке вернёт io.EOF — норм.
-				if err := ir.Read(); err != nil && err != io.EOF {
-					t.Fatal(err)
+				if !is.r.Scan() {
+					if err := is.r.Err(); err != nil {
+						t.Fatalf("chunk %d: input: %v", n, err)
+					}
+					// EOF на последнем чанке
 				}
+				is.cur = is.r.Bytes()
 			}
 
-			// ---- Input должен быть полностью исчерпан ----
-			if err := ir.Read(); err != io.EOF {
-				if err == nil {
-					t.Errorf("input not fully consumed: %q", ir.Line)
-				} else {
-					t.Fatal(err)
-				}
+			// Input должен быть полностью исчерпан
+			if is.r.Scan() {
+				t.Errorf("input not fully consumed: %q", is.r.Bytes())
+			}
+			if err := is.r.Err(); err != nil {
+				t.Fatal(err)
 			}
 		})
 	}

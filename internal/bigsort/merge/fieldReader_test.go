@@ -86,12 +86,12 @@ func TestNewFieldReader(t *testing.T) {
 			if !tc.checkErr(err) {
 				t.Fatalf("err: got %v, check failed", err)
 			}
-			if !slices.Equal(r.Line, tc.wantLine) {
-				t.Fatalf("line: got %q, want %q", r.Line, tc.wantLine)
+			if !slices.Equal(r.line, tc.wantLine) {
+				t.Fatalf("line: got %q, want %q", r.line, tc.wantLine)
 			}
 			// cmpField валиден только при успешном init
-			if err == nil && r.CmpField != tc.wantField {
-				t.Errorf("cmpField: got %d, want %d", r.CmpField, tc.wantField)
+			if err == nil && r.cmpField != tc.wantField {
+				t.Errorf("cmpField: got %d, want %d", r.cmpField, tc.wantField)
 			}
 		})
 	}
@@ -165,8 +165,8 @@ func TestFieldReaderRead(t *testing.T) {
 			// Первая строка уже прочитана при init — копируем (r.line перезаписывается)
 			var gotLines [][]byte
 			var gotFields []int
-			gotLines = append(gotLines, append([]byte(nil), r.Line...))
-			gotFields = append(gotFields, r.CmpField)
+			gotLines = append(gotLines, append([]byte(nil), r.line...))
+			gotFields = append(gotFields, r.cmpField)
 
 			for {
 				err := r.Read()
@@ -176,8 +176,8 @@ func TestFieldReaderRead(t *testing.T) {
 				if err != nil {
 					t.Fatalf("read %d: %v", len(gotLines), err)
 				}
-				gotLines = append(gotLines, append([]byte(nil), r.Line...))
-				gotFields = append(gotFields, r.CmpField)
+				gotLines = append(gotLines, append([]byte(nil), r.line...))
+				gotFields = append(gotFields, r.cmpField)
 			}
 
 			if len(gotLines) != len(tc.wantLines) {
@@ -239,8 +239,8 @@ func TestFieldReaderRead_Errors(t *testing.T) {
 					if !tc.checkErr(err) {
 						t.Fatalf("iter %d: err got %v, check failed", i, err)
 					}
-					if !slices.Equal(r.Line, tc.wantLine) {
-						t.Errorf("iter %d: line got %q, want %q", i, r.Line, tc.wantLine)
+					if !slices.Equal(r.line, tc.wantLine) {
+						t.Errorf("iter %d: line got %q, want %q", i, r.line, tc.wantLine)
 					}
 					return
 				}
