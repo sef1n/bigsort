@@ -1,7 +1,6 @@
 package merge
 
 import (
-	"bytes"
 	"errors"
 	"io"
 	"slices"
@@ -12,8 +11,6 @@ import (
 	"bigFiles/internal/bigsort/csv"
 )
 
-// Ошибки (общие для всех тестов)
-
 func isEOF(err error) bool { return errors.Is(err, io.EOF) }
 func isNil(err error) bool { return err == nil }
 func isAtoiErr(err error) bool {
@@ -22,13 +19,12 @@ func isAtoiErr(err error) bool {
 }
 func isFieldNotFound(err error) bool { return errors.Is(err, csv.ErrFieldNotFound) }
 
-// TestNewFieldReader — инициализация: pre-read первой строки.
-// После newFieldReader:
-//   - r.line содержит первую строку (без \r\n)
-//   - r.cmpField содержит распарсенное значение поля
-//   - err == nil, если первая строка валидна
-//   - err == io.EOF, если файл пуст (r.line == "")
-//   - err != nil (не io.EOF), если первая строка не парсится
+// TestNewFieldReader — инициализация (pre-read первой строки).
+// Возвращает (r, fieldV, err):
+//   - fieldV — значение поля из первой строки (валиден при err == nil)
+//   - err == nil — первая строка прочитана и распарсена
+//   - err == io.EOF — файл пуст (r.line пуст, fieldV == 0)
+//   - err != nil (не io.EOF) — первая строка не парсится (r.line содержит её)
 func TestNewFieldReader(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -41,8 +37,7 @@ func TestNewFieldReader(t *testing.T) {
 		// Пустой ввод → EOF, line пустой
 		{"empty", "", 0, nil, 0, isEOF},
 
-		// Одна строка без \n — read() возвращает nil (данные есть),
-		// следующий read() вернёт io.EOF (см. TestFieldReaderRead)
+		// Одна строка без \n — init успешен, следующий Read() вернёт io.EOF
 		{"single no newline", "1", 0, []byte("1"), 1, isNil},
 		{"single with nl", "1\n", 0, []byte("1"), 1, isNil},
 		{"single with crlf", "1\r\n", 0, []byte("1"), 1, isNil},
@@ -79,9 +74,9 @@ func TestNewFieldReader(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r, err := NewFieldReader(strings.NewReader(tc.input), tc.cmpFieldNum)
+			r, fieldV, err := newFieldReader(strings.NewReader(tc.input), tc.cmpFieldNum)
 			if r == nil {
-				t.Fatal("newFieldReader returned nil")
+				t.Fatal("NewFieldReader returned nil")
 			}
 			if !tc.checkErr(err) {
 				t.Fatalf("err: got %v, check failed", err)
@@ -89,17 +84,18 @@ func TestNewFieldReader(t *testing.T) {
 			if !slices.Equal(r.line, tc.wantLine) {
 				t.Fatalf("line: got %q, want %q", r.line, tc.wantLine)
 			}
-			// cmpField валиден только при успешном init
-			if err == nil && r.cmpField != tc.wantField {
-				t.Errorf("cmpField: got %d, want %d", r.cmpField, tc.wantField)
+			// fieldV валиден только при успешном init
+			if err == nil && fieldV != tc.wantField {
+				t.Errorf("fieldV: got %d, want %d", fieldV, tc.wantField)
 			}
 		})
 	}
 }
 
-// TestFieldReaderRead — многократные read() до EOF.
+// TestFieldReaderRead — многократные Read() до EOF.
 // После init первая строка уже прочитана; проверяем, что
-// каждая последующая read() отдаёт следующую строку, а в конце — io.EOF.
+// каждая следующая Read() отдаёт следующую строку и её fieldV,
+// а в конце — io.EOF.
 func TestFieldReaderRead(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -154,7 +150,7 @@ func TestFieldReaderRead(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r, err := NewFieldReader(strings.NewReader(tc.input), tc.cmpFieldNum)
+			r, initField, err := newFieldReader(strings.NewReader(tc.input), tc.cmpFieldNum)
 			if err != nil && err != io.EOF {
 				t.Fatalf("init: %v", err)
 			}
@@ -162,14 +158,14 @@ func TestFieldReaderRead(t *testing.T) {
 				t.Fatal("init returned io.EOF for non-empty input")
 			}
 
-			// Первая строка уже прочитана при init — копируем (r.line перезаписывается)
+			// Первая строка уже прочитана — копируем (r.line перезаписывается)
 			var gotLines [][]byte
 			var gotFields []int
 			gotLines = append(gotLines, append([]byte(nil), r.line...))
-			gotFields = append(gotFields, r.cmpField)
+			gotFields = append(gotFields, initField)
 
 			for {
-				err := r.Read()
+				fieldV, err := r.Read()
 				if err == io.EOF {
 					break
 				}
@@ -177,7 +173,7 @@ func TestFieldReaderRead(t *testing.T) {
 					t.Fatalf("read %d: %v", len(gotLines), err)
 				}
 				gotLines = append(gotLines, append([]byte(nil), r.line...))
-				gotFields = append(gotFields, r.cmpField)
+				gotFields = append(gotFields, fieldV)
 			}
 
 			if len(gotLines) != len(tc.wantLines) {
@@ -195,7 +191,7 @@ func TestFieldReaderRead(t *testing.T) {
 	}
 }
 
-// TestFieldReaderRead_Errors — ошибки при read() (2-я+ строка).
+// TestFieldReaderRead_Errors — ошибки при Read() (2-я+ строка).
 // Проверяем, что ошибка возвращается на конкретной итерации,
 // и r.line содержит проблемную строку.
 func TestFieldReaderRead_Errors(t *testing.T) {
@@ -203,7 +199,7 @@ func TestFieldReaderRead_Errors(t *testing.T) {
 		name        string
 		input       string
 		cmpFieldNum int
-		// wantErrAt — на какой итерации ошибка (0 = init; 1 = первый read)
+		// wantErrAt — на какой итерации ошибка (0 = init, 1 = первый Read)
 		wantErrAt int
 		wantLine  []byte
 		checkErr  func(error) bool
@@ -228,12 +224,10 @@ func TestFieldReaderRead_Errors(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			r, err := NewFieldReader(strings.NewReader(tc.input), tc.cmpFieldNum)
-			if err != nil && err != io.EOF {
-				t.Fatalf("init: %v", err)
-			}
+			r, _, err := newFieldReader(strings.NewReader(tc.input), tc.cmpFieldNum)
 
-			// Итерация 0 — init, итерация N — N-й read()
+			// Итерация 0 — init, итерация N — N-й Read().
+			// fieldV при ошибке не информативен (0), проверяем err и r.line.
 			for i := 0; ; i++ {
 				if i == tc.wantErrAt {
 					if !tc.checkErr(err) {
@@ -247,13 +241,10 @@ func TestFieldReaderRead_Errors(t *testing.T) {
 				if err != nil {
 					t.Fatalf("iter %d: unexpected err before wantErrAt: %v", i, err)
 				}
-				if err = r.Read(); err == io.EOF {
+				if _, err = r.Read(); err == io.EOF {
 					t.Fatalf("iter %d: got EOF before wantErrAt", i)
 				}
 			}
 		})
 	}
 }
-
-// Guard against unused import if test shrinks
-var _ = bytes.Equal
