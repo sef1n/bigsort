@@ -112,6 +112,9 @@ func SplitOnSortedChunks(parentCtx context.Context, cfg ChunkPlan, fsys afero.Fs
 
 // EstimateChunks оценивает количество чанков в переданном файле основываясь на ulimit и file size
 func EstimateChunks(toChunksFile afero.File, bytesPerChunk int) (uint64, error) {
+	if bytesPerChunk <= 0 {
+		return 0, fmt.Errorf("bytesPerChunk must be > 0, got %d", bytesPerChunk)
+	}
 	tableStat, err := toChunksFile.Stat()
 	if err != nil {
 		return 0, fmt.Errorf("stat input: %w", err)

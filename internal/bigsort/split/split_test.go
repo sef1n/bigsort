@@ -62,8 +62,11 @@ func TestSplitOnSortedChunks(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			estimatedChunks, err := EstimateChunks(inputF, DefaultBytesPerChunk)
+			estimatedChunks, err := EstimateChunks(inputF, tt.chunk)
 			if err != nil {
+				if tt.expErr {
+					return
+				}
 				t.Fatal(err)
 			}
 
