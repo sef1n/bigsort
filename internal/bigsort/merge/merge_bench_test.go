@@ -17,23 +17,17 @@ import (
 	"github.com/spf13/afero"
 )
 
-func BenchmarkMergeWithContext(b *testing.B) {
-	cases := []struct {
-		filesN       int
-		linesPerFile int
-	}{
-		{10, 1000},
-		{100, 1000},
-		{500, 1000},
-		{100, 10000},
-	}
+const totalLines = 1 << 20
 
-	for _, tc := range cases {
-		tc := tc
-		name := fmt.Sprintf("files=%d/lines=%d", tc.filesN, tc.linesPerFile)
+var filesCounts = []int{8, 16, 64, 256, 1024}
+
+func BenchmarkMergeWithContext(b *testing.B) {
+	for _, filesN := range filesCounts {
+		linesPerFile := totalLines / filesN
+		name := fmt.Sprintf("files=%d/lines=%d", filesN, linesPerFile)
 		b.Run(name, func(b *testing.B) {
 			mockFs := afero.NewMemMapFs()
-			files, totalBytes, err := setupMergeFiles(mockFs, tc.filesN, tc.linesPerFile)
+			files, totalBytes, err := setupMergeFiles(mockFs, filesN, linesPerFile)
 			if err != nil {
 				b.Fatal(err)
 			}

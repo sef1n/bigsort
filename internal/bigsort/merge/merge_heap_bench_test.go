@@ -21,22 +21,12 @@ import (
 )
 
 func BenchmarkMergeWithContextHeap(b *testing.B) {
-	cases := []struct {
-		filesN       int
-		linesPerFile int
-	}{
-		{10, 1000},   // ~200 KB
-		{100, 1000},  // ~2 MB
-		{500, 1000},  // ~10 MB — типичный размер для 10 GB с 20 MB чанками
-		{100, 10000}, // ~22 MB, но мало файлов
-	}
-
-	for _, tc := range cases {
-		tc := tc
-		name := fmt.Sprintf("files=%d/lines=%d", tc.filesN, tc.linesPerFile)
+	for _, filesN := range filesCounts {
+		linesPerFile := totalLines / filesN
+		name := fmt.Sprintf("files=%d/lines=%d", filesN, linesPerFile)
 		b.Run(name, func(b *testing.B) {
 			mockFs := afero.NewMemMapFs()
-			files, totalBytes, err := setupMergeFiles(mockFs, tc.filesN, tc.linesPerFile)
+			files, totalBytes, err := setupMergeFiles(mockFs, filesN, linesPerFile)
 			if err != nil {
 				b.Fatal(err)
 			}
