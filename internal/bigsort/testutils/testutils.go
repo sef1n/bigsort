@@ -16,6 +16,8 @@ func TrimLineCopy(b []byte) []byte {
 	return append([]byte(nil), b...)
 }
 
+const InLinePunctuation = 2 // ','+'\n'
+
 func UtilGenLine(r *rand.Rand, iN, lN int, letters []byte) []byte {
 	var b bytes.Buffer
 	// или b := make([]byte, 0, iN+1+lN+1)
