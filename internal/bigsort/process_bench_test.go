@@ -54,8 +54,8 @@ func BenchmarkSortFileMemMap(b *testing.B) {
 	}
 
 	b.Cleanup(func() {
-		mockFs.Remove(inputName)
-		mockFs.Remove(outputName)
+		_ = mockFs.Remove(inputName)
+		_ = mockFs.Remove(outputName)
 	})
 
 	for _, bpc := range chunksSizes {
@@ -114,8 +114,8 @@ func BenchmarkSortFileOs(b *testing.B) {
 	}
 
 	b.Cleanup(func() {
-		mockFs.Remove(inputPath)
-		mockFs.Remove(outputPath)
+		_ = mockFs.Remove(inputPath)
+		_ = mockFs.Remove(outputPath)
 	})
 
 	for _, bpc := range chunksSizes {
