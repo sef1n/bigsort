@@ -4,12 +4,16 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"io"
+	"os"
 	"slices"
+	"strings"
 	"testing"
 
 	"bigFiles/internal/bigsort/testutils"
 
+	"github.com/calmdocs/ulimit"
 	"github.com/spf13/afero"
 )
 
@@ -197,5 +201,130 @@ func TestSplitOnSortedChunks(t *testing.T) {
 				t.Fatal(err)
 			}
 		})
+	}
+}
+
+// TestSplitOnSortedChunks_CanceledContext verifies that SplitOnSortedChunks
+// returns context.Canceled when it is invoked with an already-canceled context.
+// A pre-canceled context is used (instead of canceling mid-flight) to keep the
+// assertion deterministic
+func TestSplitOnSortedChunks_CanceledContext(t *testing.T) {
+	mockFs := afero.NewMemMapFs()
+
+	inputF, err := mockFs.Create("input")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { testutils.DelF(mockFs, inputF) })
+
+	if err := testutils.FillFile(inputF, []byte("1,a\n2,b\n")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := inputF.Seek(0, io.SeekStart); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel before the call
+
+	cfg := ChunkPlan{
+		In:              inputF,
+		TmpDir:          ".",
+		CmpFieldNum:     0,
+		BytesPerChunk:   DefaultBytesPerChunk,
+		EstimatedChunks: 1,
+	}
+
+	_, err = SplitOnSortedChunks(ctx, cfg, mockFs)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+}
+
+// failingWriteFs wraps an afero.Fs so that files opened for writing return a
+// File whose Write always fails.
+type failingWriteFs struct{ afero.Fs }
+
+func (f failingWriteFs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
+	file, err := f.Fs.OpenFile(name, flag, perm)
+	if err != nil {
+		return nil, err
+	}
+	if flag&(os.O_WRONLY|os.O_RDWR|os.O_CREATE|os.O_TRUNC|os.O_APPEND) != 0 {
+		return &failingWriteFile{File: file}, nil
+	}
+	return file, nil
+}
+
+type failingWriteFile struct{ afero.File }
+
+func (f *failingWriteFile) Write(p []byte) (int, error) {
+	return 0, errors.New("simulated write failure")
+}
+
+// TestSplitOnSortedChunks_WriteError verifies that a write failure while
+// flushing a sorted chunk is propagated to the caller.
+func TestSplitOnSortedChunks_WriteError(t *testing.T) {
+	mockFs := afero.NewMemMapFs()
+
+	inputF, err := mockFs.Create("input")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { testutils.DelF(mockFs, inputF) })
+
+	if err := testutils.FillFile(inputF, []byte("1,a\n2,b\n3,c\n")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := inputF.Seek(0, io.SeekStart); err != nil {
+		t.Fatal(err)
+	}
+
+	fs := failingWriteFs{Fs: mockFs}
+
+	cfg := ChunkPlan{
+		In:              inputF,
+		TmpDir:          ".",
+		CmpFieldNum:     0,
+		BytesPerChunk:   DefaultBytesPerChunk,
+		EstimatedChunks: 1,
+	}
+
+	if _, err := SplitOnSortedChunks(context.Background(), cfg, fs); err == nil {
+		t.Fatal("expected write error, got nil")
+	}
+}
+
+// TestEstimateChunks_UlimitExceeded verifies that EstimateChunks rejects an
+// input whose estimated chunk count exceeds the OS open-file limit.
+func TestEstimateChunks_UlimitExceeded(t *testing.T) {
+	lim, err := ulimit.Get()
+	if err != nil {
+		t.Fatalf("ulimit.Get: %v", err)
+	}
+	if lim < 10 {
+		t.Skipf("ulimit too low for this test: %d", lim)
+	}
+
+	mockFs := afero.NewMemMapFs()
+	inputF, err := mockFs.Create("input")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { testutils.DelF(mockFs, inputF) })
+
+	// With bpc=1, estimatedChunks == file size. Size = lim+100 guarantees
+	// estimatedChunks > lim-5 by a comfortable margin.
+	size := int64(lim) * 2
+	if err := testutils.FillFile(inputF, bytes.Repeat([]byte{'a'}, int(size))); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = EstimateChunks(inputF, 1)
+	if err == nil {
+		t.Fatal("expected ulimit error, got nil")
+	}
+	if !strings.Contains(err.Error(), "input too large") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
