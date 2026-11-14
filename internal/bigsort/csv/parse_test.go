@@ -155,8 +155,8 @@ func TestParseCSVTable(t *testing.T) {
 	}
 }
 
-func TestParseCSVTable_FallbackLongLine(t *testing.T) {
-	input := strings.Repeat("a", 5000) + ",1\n" + "b,2\n" // > 4096 buffer
+func TestParseCSVTable_FallbackLongLines(t *testing.T) {
+	input := strings.Repeat("a", 5000) + ",1\n" + strings.Repeat("b", 5000) + ",2\n" // > 4096 buffer
 
 	got, err := ParseCSVTable(bufio.NewReader(strings.NewReader(input)), 1, 100_000)
 	if err != nil && !errors.Is(err, io.EOF) {
