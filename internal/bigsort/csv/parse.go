@@ -42,6 +42,10 @@ func ParseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep
 	if maxParsedBytes <= 0 {
 		return parseStep{}, &parseError{0, fmt.Errorf("maxParsedBytes must be > 0, got %d", maxParsedBytes)}
 	}
+	// NOTE: read+fallback duplicated intentionally - extraction (closure/helper)
+	// adds ~2-5ns per line via indirect call + escape of arena/readLines,
+	// which is 2-3% on CPU-bound benchmark. Keep inline.
+
 	// Размер успешно распаршенных строк в байтах
 	parsedBytes := 0
 	// Количество прочтанных строк br.ReadSlice/br.ReadBytes (включая строку io.EOF)
@@ -51,11 +55,11 @@ func ParseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep
 	var linesArena []byte
 	arenaOffset := 0
 
-	// NOTE: читаем первую строку отдельно, чтобы аллоцировать правильный размер
-	// processingFields и linesArena
-	// для уменьшения кол-ва аллокаций при чтении
-	// Используем ReadSlice + fallback на ReadBytes для очень больших строк
-	// Берем cap с запасом на лишнюю стрку, чтобы не реаллоцировать
+	// NOTE: we read the first line separately to allocate the correct size
+	// processingFields and linesArena
+	// to reduce the number of allocations when reading
+	// We use ReadSlice + fallback on readBytes for very large lines
+	// We take a cap with a margin for an extra page so as not to reallocate
 	line, readErr := br.ReadSlice('\n')
 	readLines++
 	fullLineLen := len(line)
