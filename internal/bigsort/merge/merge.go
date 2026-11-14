@@ -38,11 +38,11 @@ func MergeWithContext(ctx context.Context, cmpFieldNum int, inS []afero.File, ou
 			return err
 		}
 
+		// line is reset to [:0] in Read(), so appending '\n' here is safe
+		// Single Write (vs Write + WriteByte) saves one bufio call per line.
 		popped := readers[ind]
 		popped.line = append(popped.line, byte('\n'))
 
-		// Пишем сразу с \n
-		// TODO: писать отдельно line && '\n'?
 		if _, err := w.Write(popped.line); err != nil {
 			return err
 		}
