@@ -70,6 +70,27 @@ func TestNewFieldReader(t *testing.T) {
 
 		// cmpFieldNum за пределами
 		{"cmp=2 beyond", "1,a\n", 2, []byte("1,a"), 0, isFieldNotFound},
+
+		// Переполнение буффера bufio.Reader
+		{
+			"buffer overflow",
+			strings.Repeat("1,a,", 128*1024) + "\n",
+			0, []byte(strings.Repeat("1,a,", 128*1024)),
+			1, isNil,
+		},
+		{
+			"buffer overflow then normal",
+			strings.Repeat("1,a,", 16*1024) + "\n2,b\n",
+			0, []byte(strings.Repeat("1,a,", 16*1024)),
+			1, isNil,
+		},
+		{
+			"buffer overflow cmp=1",
+			strings.Repeat("x", 16*1024) + ",5\n",
+			1,
+			[]byte(strings.Repeat("x", 16*1024) + ",5"),
+			5, isNil,
+		},
 	}
 
 	for _, tc := range tests {
