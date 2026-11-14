@@ -10,11 +10,7 @@ import (
 	"unsafe"
 )
 
-const (
-	// Ожидаемая средняя длинна строки в таблице
-	// TODO: оценивать по первой строке файла?
-	predictAvgLineLen = 100 // байт
-)
+const minLineLen = 20
 
 type parseStep struct {
 	Entries   []FieldEntry
@@ -46,25 +42,86 @@ func ParseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep
 	if maxParsedBytes <= 0 {
 		return parseStep{}, &parseError{0, fmt.Errorf("maxParsedBytes must be > 0, got %d", maxParsedBytes)}
 	}
-	// Нет смысла ограничивать cap - если возникают ошибки при выделении памяти,
-	// нужно менять значение размера чанка
-	processingFields := make([]FieldEntry, 0, maxParsedBytes/predictAvgLineLen)
-
-	// Арена для уменьшения кол-ва аллокаций при чтении
-	// Использует ReadSlice + fallback на ReadBytes для очень больших строк
-	// Берем cap с запасом на лишнюю стрку, чтобы не реаллоцировать
-	linesArena := make([]byte, 0, maxParsedBytes+predictAvgLineLen)
-	arenaOffset := 0
-
 	// Размер успешно распаршенных строк в байтах
 	parsedBytes := 0
 	// Количество прочтанных строк br.ReadSlice/br.ReadBytes (включая строку io.EOF)
 	readLines := 0
-	for parsedBytes < maxParsedBytes {
-		line, readErr := br.ReadSlice('\n')
+
+	var processingFields []FieldEntry
+	var linesArena []byte
+	arenaOffset := 0
+
+	// NOTE: читаем первую строку отдельно, чтобы аллоцировать правильный размер
+	// processingFields и linesArena
+	// для уменьшения кол-ва аллокаций при чтении
+	// Используем ReadSlice + fallback на ReadBytes для очень больших строк
+	// Берем cap с запасом на лишнюю стрку, чтобы не реаллоцировать
+	line, readErr := br.ReadSlice('\n')
+	readLines++
+	fullLineLen := len(line)
+
+	if readErr != nil && readErr != io.EOF {
+		// fallback только для длинных строк
+		if !errors.Is(readErr, bufio.ErrBufferFull) {
+			return parseStep{}, &parseError{readLines, fmt.Errorf("reading: %w", readErr)}
+		}
+
+		linesArena = make([]byte, 0, maxParsedBytes+fullLineLen)
+		linesArena = append(linesArena, line...)
+
+		// новый указатель - остаток строки
+		line, readErr = br.ReadBytes('\n')
+		if readErr != nil && readErr != io.EOF {
+			return parseStep{}, &parseError{readLines, fmt.Errorf("reading (fell back to ReadBytes): %w", readErr)}
+		}
+		fullLineLen += len(line)
+	} else {
+		linesArena = make([]byte, 0, maxParsedBytes+fullLineLen)
+	}
+
+	processingFields = make([]FieldEntry, 0, maxParsedBytes/max(minLineLen, fullLineLen))
+
+	for {
+		linesArena = append(linesArena, line...)
+		line = linesArena[arenaOffset : arenaOffset+fullLineLen]
+		// arenaOffset меняем после trim
+
+		// Обрезаем только крайние символы
+		// Указатель на line меняется, в арене продолжает храниться обрезанное
+		line = bytes.TrimSuffix(line, []byte("\n"))
+		line = bytes.TrimSuffix(line, []byte("\r"))
+
+		// Обновляем гранцы, исключаем обрезанное
+		linesArena = linesArena[:arenaOffset+len(line)]
+		arenaOffset += len(line)
+
+		if len(line) > 0 {
+			nthF, parseErr := NthField(line, cmpFieldNum)
+			if parseErr != nil {
+				return parseStep{}, &parseError{readLines, fmt.Errorf("parsing: %w", parseErr)}
+			}
+
+			fi, parseErr := newFieldEntry(line, nthF)
+			if parseErr != nil {
+				return parseStep{}, &parseError{readLines, fmt.Errorf("saving: %w", parseErr)}
+			}
+
+			processingFields = append(processingFields, fi)
+			parsedBytes += len(line)
+		}
+
+		if readErr == io.EOF {
+			return parseStep{processingFields, readLines}, io.EOF
+		}
+
+		if parsedBytes >= maxParsedBytes {
+			break
+		}
+
+		line, readErr = br.ReadSlice('\n')
 		readLines++
 		// Переменная для подсчета позиции на арене после fallback
-		fullLineLen := len(line)
+		fullLineLen = len(line)
 
 		if readErr != nil && readErr != io.EOF {
 			// NOTE: fallback только для длинных строк
@@ -84,37 +141,6 @@ func ParseCSVTable(br *bufio.Reader, cmpFieldNum, maxParsedBytes int) (parseStep
 			fullLineLen += len(line)
 		}
 
-		linesArena = append(linesArena, line...)
-		line = linesArena[arenaOffset : arenaOffset+fullLineLen]
-		// arenaOffset меняем после trim
-
-		// Обрезаем только крайние символы
-		// Указатель на line меняется, в арене продолжает храниться обрезанное
-		line = bytes.TrimSuffix(line, []byte("\n"))
-		line = bytes.TrimSuffix(line, []byte("\r"))
-
-		// Обновляем гранцы, исключаем обрезанное
-		linesArena = linesArena[:arenaOffset+len(line)]
-		arenaOffset += len(line)
-		if len(line) > 0 {
-
-			nthF, parseErr := NthField(line, cmpFieldNum)
-			if parseErr != nil {
-				return parseStep{}, &parseError{readLines, fmt.Errorf("parsing: %w", parseErr)}
-			}
-
-			fi, parseErr := newFieldEntry(line, nthF)
-			if parseErr != nil {
-				return parseStep{}, &parseError{readLines, fmt.Errorf("saving: %w", parseErr)}
-			}
-
-			processingFields = append(processingFields, fi)
-			parsedBytes += len(line)
-		}
-
-		if readErr == io.EOF {
-			return parseStep{processingFields, readLines}, io.EOF
-		}
 	}
 	return parseStep{processingFields, readLines}, nil
 }
