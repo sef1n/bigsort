@@ -11,12 +11,14 @@ import (
 
 // MergeWithContext выполняет merge-слияние файлов, пишет результат в out.
 // При ошибке не выполняет Flush().
-// TODO: принимает []io.Reader?
-func MergeWithContext(ctx context.Context, cmpFieldNum int, inS []afero.File, out io.Writer) error {
-	readers := make([]*fieldReader, 0, len(inS))
-	initial := make([]int, 0, len(inS))
+func MergeWithContext(ctx context.Context, cmpFieldNum int, inputs []afero.File, out io.Writer) error {
+	// NOTE: There is no point in using []io.Reader instead of []afero.File now:
+	// it leads to copying a slice of files or using generics,
+	// which adds premature complexity.
+	readers := make([]*fieldReader, 0, len(inputs))
+	initial := make([]int, 0, len(inputs))
 
-	for _, f := range inS {
+	for _, f := range inputs {
 		r, fieldV, err := newFieldReader(f, cmpFieldNum)
 		if err != nil && err != io.EOF {
 			return err
