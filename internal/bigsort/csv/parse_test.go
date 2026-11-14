@@ -173,6 +173,14 @@ func TestParseCSVTable_FallbackLongLine(t *testing.T) {
 	}
 }
 
+// csv/parse_test.go
+func TestNthField_Negative(t *testing.T) {
+	_, err := NthField([]byte("1,a"), -1)
+	if err == nil {
+		t.Fatal("want error for negative n")
+	}
+}
+
 // truncate возвращает превью []byte для лога: не более n байт.
 func truncate(b []byte, n int) string {
 	if len(b) <= n {
