@@ -27,6 +27,22 @@ run:
 clean:
 	rm -rf $(BUILD_DIR)
 
+check: fmt-check vet test
+
+fmt:
+	gofmt -w .
+
+fmt-check:
+	@diff=$$(gofmt -l .); \
+	if [ -n "$$diff" ]; then \
+		echo "Файлы не отформатированы:"; \
+		echo "$$diff"; \
+		exit 1; \
+	fi
+
+vet:
+	go vet ./...
+
 test:
 	go test $(TEST_PKGS)
 
@@ -43,3 +59,5 @@ test-bench:
 		exit 1; \
 	fi
 	go test -bench=$(BName) -benchtime=$(BTime)x -count=$(BCount) $(TEST_PKGS) | tee $(BOut)
+
+ci: check build
