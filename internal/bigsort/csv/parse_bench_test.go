@@ -13,7 +13,7 @@ import (
 )
 
 func BenchmarkParseCSVTable(b *testing.B) {
-	rSeed := rand.New(rand.NewSource(1))
+	rSeed := rand.New(rand.NewSource(testutils.RandSeed))
 	inLineDigits, inLineLetters := 10, 10
 	genLetters := []byte("abcd")
 

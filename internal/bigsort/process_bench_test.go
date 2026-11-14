@@ -39,7 +39,7 @@ func BenchmarkSortFileMemMap(b *testing.B) {
 		totalLines = inputSize / inLineSymbols
 	)
 
-	rSeed := rand.New(rand.NewSource(1))
+	rSeed := rand.New(rand.NewSource(testutils.RandSeed))
 	chunksSizes := initSizes(inputSize, mib)
 	genLetters := []byte("abcd")
 
@@ -93,7 +93,7 @@ func BenchmarkSortFileOs(b *testing.B) {
 		totalLines = inputSize / inLineSymbols
 	)
 
-	rSeed := rand.New(rand.NewSource(1))
+	rSeed := rand.New(rand.NewSource(testutils.RandSeed))
 	chunksSizes := initSizes(inputSize, mib)
 	genLetters := []byte("abcd")
 

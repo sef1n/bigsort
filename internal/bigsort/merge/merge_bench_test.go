@@ -65,7 +65,7 @@ func BenchmarkMergeWithContext(b *testing.B) {
 // Каждый файл отсортирован по первому полю (как после splitOnSortedChunks).
 // Возвращает открытые файлы (позиция в начале) и суммарный размер в байтах.
 func setupMergeFiles(fsys afero.Fs, filesN, linesPerFile int) ([]afero.File, int64, error) {
-	rSeed := rand.New(rand.NewSource(1))
+	rSeed := rand.New(rand.NewSource(testutils.RandSeed))
 	const inLineDigits, inLineLetters = 10, 10
 	genLetters := []byte("abcd")
 

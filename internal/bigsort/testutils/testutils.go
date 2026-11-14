@@ -9,6 +9,8 @@ import (
 	"github.com/spf13/afero"
 )
 
+const RandSeed = 1
+
 // TrimLineCopy возвращает trimmed-копию: []byte переиспользуется.
 func TrimLineCopy(b []byte) []byte {
 	b = bytes.TrimSuffix(b, []byte("\n"))
