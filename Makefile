@@ -1,4 +1,4 @@
-.PHONY: build run clean 
+.PHONY: build run clean test
 
 BUILD_DIR := ./bin
 SERVICES  := sorter generator
@@ -19,3 +19,6 @@ run:
 
 clean:
 	rm -rf $(BUILD_DIR)
+
+test:
+	go test ./internal/bigsort/...
